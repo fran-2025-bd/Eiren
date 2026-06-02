@@ -1,0 +1,105 @@
+{% extends "base.html" %}
+{% block title %}{{ titulo }} · Eiren{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h2>{{ titulo }}</h2>
+    {% if profesor is defined %}
+      <p class="text-muted">Editando: {{ profesor.usuario.nombre }}</p>
+    {% endif %}
+  </div>
+  <a href="{{ url_for('profesores.listado') }}" class="btn btn-ghost">← Volver</a>
+</div>
+
+<form method="POST" novalidate>
+  {{ form.hidden_tag() }}
+
+  <div class="form-section">
+    <h3 class="form-section-title">Datos de acceso</h3>
+    <div class="form-grid">
+
+      <div class="form-group {% if form.nombre.errors %}has-error{% endif %}">
+        {{ form.nombre.label }}
+        {{ form.nombre(placeholder="María González") }}
+        {% for e in form.nombre.errors %}<span class="form-error">{{ e }}</span>{% endfor %}
+      </div>
+
+      <div class="form-group {% if form.username.errors %}has-error{% endif %}">
+        {{ form.username.label }}
+        {{ form.username(placeholder="maria.gonzalez") }}
+        <span class="form-hint">Sin espacios, en minúsculas. Ej: maria.gonzalez</span>
+        {% for e in form.username.errors %}<span class="form-error">{{ e }}</span>{% endfor %}
+      </div>
+
+      <div class="form-group {% if form.password.errors %}has-error{% endif %}">
+        {{ form.password.label }}
+        {{ form.password(placeholder="Mínimo 4 caracteres") }}
+        {% if profesor is defined %}
+          <span class="form-hint">Dejar vacío para no cambiar la contraseña.</span>
+        {% endif %}
+        {% for e in form.password.errors %}<span class="form-error">{{ e }}</span>{% endfor %}
+      </div>
+
+    </div>
+  </div>
+
+  <div class="form-section">
+    <h3 class="form-section-title">Datos personales</h3>
+    <div class="form-grid">
+
+      <div class="form-group">
+        {{ form.dni.label }}
+        {{ form.dni(placeholder="20123456") }}
+      </div>
+
+      <div class="form-group">
+        {{ form.telefono.label }}
+        {{ form.telefono(placeholder="3804 123456") }}
+      </div>
+
+      <div class="form-group">
+        {{ form.fecha_nacimiento.label }}
+        {{ form.fecha_nacimiento() }}
+      </div>
+
+      <div class="form-group">
+        {{ form.email_contacto.label }}
+        {{ form.email_contacto(placeholder="maria@email.com") }}
+      </div>
+
+      <div class="form-group form-group--full">
+        {{ form.direccion.label }}
+        {{ form.direccion(placeholder="Av. Rivadavia 1234, La Rioja") }}
+      </div>
+
+    </div>
+  </div>
+
+  <div class="form-section">
+    <h3 class="form-section-title">Condición de pago</h3>
+    <div class="form-grid">
+
+      <div class="form-group">
+        {{ form.condicion_pago.label }}
+        {{ form.condicion_pago() }}
+        <span class="form-hint">Define cómo se calcula la liquidación del profesor.</span>
+      </div>
+
+    </div>
+  </div>
+
+  <div class="form-section">
+    <h3 class="form-section-title">Notas internas</h3>
+    <div class="form-group">
+      {{ form.notas(placeholder="Especialidad, observaciones, disponibilidad...", rows=3) }}
+    </div>
+  </div>
+
+  <div class="form-actions">
+    {{ form.submit(class="btn btn-primary") }}
+    <a href="{{ url_for('profesores.listado') }}" class="btn btn-ghost">Cancelar</a>
+  </div>
+
+</form>
+{% endblock %}

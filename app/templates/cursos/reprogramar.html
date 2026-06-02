@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+{% block title %}Reprogramar clase · Eiren{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h2>Reprogramar clase</h2>
+    <p class="text-muted">
+      {{ inscripcion.alumno.usuario.nombre }} —
+      {{ inscripcion.curso.nombre }}
+    </p>
+  </div>
+  <a href="{{ url_for('cursos.ficha', curso_id=inscripcion.curso_id) }}" class="btn btn-ghost">← Volver</a>
+</div>
+
+{% if numero > 1 %}
+<div class="flash flash-warning" style="margin-bottom:1rem;">
+  Este alumno ya tiene {{ numero - 1 }} reprogramación{{ 'es' if numero > 2 }} en este curso.
+  Es la reprogramación número {{ numero }}.
+</div>
+{% endif %}
+
+<form method="POST" novalidate>
+  {{ form.hidden_tag() }}
+
+  <div class="form-section">
+    <h3 class="form-section-title">Datos de la reprogramación</h3>
+    <div class="form-grid">
+
+      <div class="form-group {% if form.fecha_original.errors %}has-error{% endif %}">
+        {{ form.fecha_original.label }}
+        {{ form.fecha_original() }}
+        {% for e in form.fecha_original.errors %}<span class="form-error">{{ e }}</span>{% endfor %}
+      </div>
+
+      <div class="form-group {% if form.fecha_nueva.errors %}has-error{% endif %}">
+        {{ form.fecha_nueva.label }}
+        {{ form.fecha_nueva() }}
+        {% for e in form.fecha_nueva.errors %}<span class="form-error">{{ e }}</span>{% endfor %}
+      </div>
+
+      <div class="form-group form-group--full">
+        {{ form.motivo.label }}
+        {{ form.motivo(placeholder="Motivo de la reprogramación...", rows=2) }}
+      </div>
+
+    </div>
+  </div>
+
+  <div class="form-section">
+    <h3 class="form-section-title">Cobro extra (opcional)</h3>
+    <div class="form-grid">
+
+      <div class="form-group form-check">
+        {{ form.cobro_extra() }}
+        {{ form.cobro_extra.label }}
+      </div>
+
+      <div class="form-group" id="monto-extra-group" style="display:none;">
+        {{ form.monto_extra.label }}
+        {{ form.monto_extra(placeholder="0.00") }}
+        <span class="form-hint">Solo se registra si activás el cobro extra.</span>
+      </div>
+
+    </div>
+  </div>
+
+  <div class="form-actions">
+    {{ form.submit(class="btn btn-primary") }}
+    <a href="{{ url_for('cursos.ficha', curso_id=inscripcion.curso_id) }}" class="btn btn-ghost">Cancelar</a>
+  </div>
+</form>
+
+<script>
+const chk   = document.getElementById('cobro_extra');
+const group = document.getElementById('monto-extra-group');
+chk.addEventListener('change', () => {
+  group.style.display = chk.checked ? 'block' : 'none';
+});
+</script>
+{% endblock %}

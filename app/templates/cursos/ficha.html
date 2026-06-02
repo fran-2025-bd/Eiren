@@ -1,0 +1,110 @@
+{% extends "base.html" %}
+{% block title %}{{ curso.nombre }} · Eiren{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h2>{{ curso.nombre }}</h2>
+    <span class="badge {{ 'badge-activo' if curso.activo else 'badge-inactivo' }}">
+      {{ 'Activo' if curso.activo else 'Inactivo' }}
+    </span>
+    <span class="badge {{ 'badge-individual' if curso.modalidad == 'individual' else 'badge-grupal' }}" style="margin-left:4px;">
+      {{ curso.modalidad_label() }}
+    </span>
+  </div>
+  <div class="page-header-actions">
+    {% if current_user.es_admin() %}
+    <a href="{{ url_for('cursos.editar', curso_id=curso.id) }}" class="btn btn-secondary">Editar</a>
+    {% endif %}
+    <a href="{{ url_for('cursos.listado') }}" class="btn btn-ghost">← Volver</a>
+  </div>
+</div>
+
+<div class="ficha-grid">
+
+  <div class="ficha-card">
+    <h3 class="ficha-card-title">Información general</h3>
+    <dl class="ficha-dl">
+      <dt>Profesor</dt>     <dd>{{ curso.profesor.usuario.nombre }}</dd>
+      <dt>Arancel base</dt> <dd>${{ curso.arancel_base|moneda }}</dd>
+      {% if curso.descripcion %}
+      <dt>Descripción</dt>  <dd>{{ curso.descripcion }}</dd>
+      {% endif %}
+    </dl>
+  </div>
+
+  <div class="ficha-card">
+    <h3 class="ficha-card-title">Horarios</h3>
+    {% if curso.horarios %}
+      <div style="display:flex; flex-direction:column; gap:8px;">
+        {% for h in curso.horarios %}
+        <div class="horario-pill">
+          <span class="horario-dia">{{ h.dia_semana|capitalize }}</span>
+          <span class="horario-hora">{{ h.hora_inicio }} – {{ h.hora_fin }}</span>
+        </div>
+        {% endfor %}
+      </div>
+    {% else %}
+      <p class="text-muted" style="font-size:13px;">Sin horarios cargados.</p>
+    {% endif %}
+  </div>
+
+  <div class="ficha-card ficha-card--full">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:.75rem;">
+      <h3 class="ficha-card-title" style="margin-bottom:0;">
+        Alumnos inscriptos ({{ curso.alumnos_activos()|length }})
+      </h3>
+      {% if current_user.es_admin() %}
+      <a href="{{ url_for('cursos.inscribir', curso_id=curso.id) }}"
+         class="btn btn-primary" style="font-size:12px; padding:6px 12px;">
+        + Inscribir alumno
+      </a>
+      {% endif %}
+    </div>
+
+    {% if curso.alumnos_activos() %}
+    <div class="table-wrapper" style="border:none; background:transparent;">
+      <table class="tabla">
+        <thead>
+          <tr>
+            <th>Alumno</th>
+            <th>Arancel acordado</th>
+            <th>Descuento</th>
+            <th>Arancel final</th>
+            <th>Reprogramaciones</th>
+            {% if current_user.es_admin() %}<th>Acciones</th>{% endif %}
+          </tr>
+        </thead>
+        <tbody>
+          {% for i in curso.alumnos_activos() %}
+          <tr>
+            <td><strong>{{ i.alumno.usuario.nombre }}</strong></td>
+            <td>${{ i.arancel_acordado|moneda }}</td>
+            <td>{{ i.descuento_pct|int }}%</td>
+            <td>${{ i.arancel_final|moneda }}</td>
+            <td>{{ i.reprogramaciones|length }}</td>
+            {% if current_user.es_admin() %}
+            <td class="acciones">
+              <a href="{{ url_for('cursos.editar_inscripcion', inscripcion_id=i.id) }}"
+                 class="btn-link">Editar arancel</a>
+              <form method="POST"
+                    action="{{ url_for('cursos.baja_inscripcion', inscripcion_id=i.id) }}"
+                    style="display:inline"
+                    onsubmit="return confirm('¿Dar de baja a {{ i.alumno.usuario.nombre }} del curso?')">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <button type="submit" class="btn-link text-danger">Dar de baja</button>
+              </form>
+            </td>
+            {% endif %}
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+      <p class="text-muted" style="font-size:13px;">No hay alumnos inscriptos todavía.</p>
+    {% endif %}
+  </div>
+
+</div>
+{% endblock %}

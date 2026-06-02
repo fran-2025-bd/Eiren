@@ -1,0 +1,88 @@
+{% extends "base.html" %}
+{% block title %}Cursos · Eiren{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h2>Cursos</h2>
+    <p class="text-muted">{{ cursos|length }} curso{{ 's' if cursos|length != 1 }}</p>
+  </div>
+  {% if current_user.es_admin() %}
+  <a href="{{ url_for('cursos.nuevo') }}" class="btn btn-primary">+ Nuevo curso</a>
+  {% endif %}
+</div>
+
+<div class="search-bar">
+  <form method="GET" action="{{ url_for('cursos.listado') }}">
+    <input type="text" name="q" value="{{ busqueda }}"
+           placeholder="Buscar por nombre..." class="input-search">
+    <button type="submit" class="btn btn-secondary">Buscar</button>
+    {% if busqueda %}
+      <a href="{{ url_for('cursos.listado') }}" class="btn btn-ghost">Limpiar</a>
+    {% endif %}
+  </form>
+</div>
+
+{% if cursos %}
+<div class="table-wrapper">
+  <table class="tabla">
+    <thead>
+      <tr>
+        <th>Nombre</th>
+        <th>Profesor</th>
+        <th>Modalidad</th>
+        <th>Horarios</th>
+        <th>Arancel base</th>
+        <th>Alumnos</th>
+        <th>Estado</th>
+        <th>Acciones</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for c in cursos %}
+      <tr class="{{ 'row-inactivo' if not c.activo }}">
+        <td><strong>{{ c.nombre }}</strong></td>
+        <td>{{ c.profesor.usuario.nombre }}</td>
+        <td>
+          <span class="badge {{ 'badge-individual' if c.modalidad == 'individual' else 'badge-grupal' }}">
+            {{ c.modalidad_label() }}
+          </span>
+        </td>
+        <td class="text-muted" style="font-size:12px;">{{ c.horarios_str() or '—' }}</td>
+        <td>${{ c.arancel_base|moneda }}</td>
+        <td>{{ c.alumnos_activos()|length }}</td>
+        <td>
+          <span class="badge {{ 'badge-activo' if c.activo else 'badge-inactivo' }}">
+            {{ 'Activo' if c.activo else 'Inactivo' }}
+          </span>
+        </td>
+        <td class="acciones">
+          <a href="{{ url_for('cursos.ficha', curso_id=c.id) }}" class="btn-link">Ver</a>
+          {% if current_user.es_admin() %}
+          <a href="{{ url_for('cursos.editar', curso_id=c.id) }}" class="btn-link">Editar</a>
+          <form method="POST"
+                action="{{ url_for('cursos.toggle_activo', curso_id=c.id) }}"
+                style="display:inline">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <button type="submit"
+                    class="btn-link {{ 'text-danger' if c.activo else 'text-success' }}">
+              {{ 'Desactivar' if c.activo else 'Activar' }}
+            </button>
+          </form>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+{% else %}
+<div class="empty-state">
+  <p>{{ 'No se encontraron cursos para "' + busqueda + '"' if busqueda else 'Todavía no hay cursos creados.' }}</p>
+  {% if not busqueda and current_user.es_admin() %}
+    <a href="{{ url_for('cursos.nuevo') }}" class="btn btn-primary">Crear el primero</a>
+  {% endif %}
+</div>
+{% endif %}
+{% endblock %}

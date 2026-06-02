@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Comprobante #{{ pago.id }} · Eiren</title>
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 500px; margin: 40px auto; color: #1a0a00; }
+    .header { text-align: center; border-bottom: 2px solid #7A2020; padding-bottom: 16px; margin-bottom: 24px; }
+    .header h1 { font-size: 1.8rem; color: #7A2020; margin: 0; }
+    .header p { color: #8A5A3A; margin: 4px 0 0; font-size: 14px; }
+    .comprobante-nro { font-size: 13px; color: #5A3A20; margin-top: 8px; }
+    .dl { display: grid; grid-template-columns: 140px 1fr; gap: 8px 16px; font-size: 14px; margin-bottom: 24px; }
+    .dl dt { color: #8A5A3A; font-weight: 500; }
+    .dl dd { color: #1a0a00; }
+    .monto-total { text-align: center; background: #f5e6da; border-radius: 12px;
+                   padding: 16px; margin: 16px 0; }
+    .monto-total .label { font-size: 13px; color: #8A5A3A; }
+    .monto-total .monto { font-size: 2rem; font-weight: 700; color: #7A2020; }
+    .footer { text-align: center; font-size: 12px; color: #8A7060; margin-top: 32px;
+              border-top: 1px solid #e2d5c8; padding-top: 16px; }
+    @media print { .btn-print { display: none; } }
+    .btn-print { display: block; margin: 16px auto; padding: 8px 24px;
+                 background: #7A2020; color: #fff; border: none;
+                 border-radius: 8px; font-size: 14px; cursor: pointer; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>Eiren</h1>
+    <p>Comprobante de pago</p>
+    <div class="comprobante-nro">N° {{ pago.comprobante_nro or pago.id }}</div>
+  </div>
+
+  <dl class="dl">
+    <dt>Alumno</dt>      <dd>{{ pago.inscripcion.alumno.usuario.nombre }}</dd>
+    <dt>Curso</dt>       <dd>{{ pago.inscripcion.curso.nombre }}</dd>
+    <dt>Período</dt>     <dd>{{ pago.periodo_str }}</dd>
+    <dt>Fecha de pago</dt><dd>{{ pago.fecha_pago.strftime('%d/%m/%Y') }}</dd>
+    <dt>Tipo de pago</dt><dd>{{ pago.tipo_pago|capitalize }}</dd>
+  </dl>
+
+  <div class="monto-total">
+    <div class="label">Total abonado</div>
+    <div class="monto">${{ pago.monto|moneda }}</div>
+  </div>
+
+  <div class="footer">
+    Eiren · Sistema de gestión del estudio<br>
+    Generado el {{ pago.creado_en.strftime('%d/%m/%Y %H:%M') if pago.creado_en else '' }}
+  </div>
+
+  <button class="btn-print" onclick="window.print()">🖨 Imprimir</button>
+</body>
+</html>

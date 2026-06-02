@@ -1,0 +1,215 @@
+{% extends "base.html" %}
+{% block title %}Mi panel · Eiren{% endblock %}
+
+{% block content %}
+<div class="dashboard-welcome">
+  <h2>Hola, {{ current_user.nombre }}</h2>
+  <p class="text-muted">Tu espacio en el estudio</p>
+</div>
+
+<div class="dashboard-layout">
+  <div class="dashboard-cal">
+    <div class="cal-wrapper">
+      <div class="cal-header">
+        <button class="cal-nav" id="btn-prev">&#8249;</button>
+        <span class="cal-titulo" id="cal-titulo"></span>
+        <button class="cal-nav" id="btn-next">&#8250;</button>
+      </div>
+      <div class="cal-grid" id="cal-grid"></div>
+    </div>
+  </div>
+  <div class="dashboard-cards">
+    <a href="#mis-clases" class="dash-card-v">
+      <span class="dash-icon">🏫</span>
+      <span class="dash-label">Mis clases</span>
+    </a>
+    <a href="#mis-pagos" class="dash-card-v">
+      <span class="dash-icon">📄</span>
+      <span class="dash-label">Mis pagos</span>
+    </a>
+    <a href="{{ url_for('alumnos.editar_perfil') }}" class="dash-card-v">
+      <span class="dash-icon">✏️</span>
+      <span class="dash-label">Mi perfil</span>
+    </a>
+  </div>
+</div>
+
+<div class="ficha-card ficha-card--full" style="margin-top:1.5rem;" id="mis-clases">
+  <h3 class="ficha-card-title">Mis clases</h3>
+  {% set inscripciones_activas = alumno.inscripciones|selectattr('activo')|list %}
+  {% if inscripciones_activas %}
+  <div class="table-wrapper" style="border:none; background:transparent;">
+    <table class="tabla">
+      <thead>
+        <tr><th>Curso</th><th>Horario</th><th>Días</th><th>Sala</th><th>Arancel</th></tr>
+      </thead>
+      <tbody>
+        {% for i in inscripciones_activas %}
+        <tr>
+          <td><strong>{{ i.curso.nombre }}</strong></td>
+          <td style="font-size:12px;">{{ i.curso.horarios_str() or '—' }}</td>
+          <td style="font-size:12px; color:var(--text-muted);">
+            {% for h in i.curso.horarios %}
+              {{ h.dia_semana|capitalize }}{% if not loop.last %}, {% endif %}
+            {% endfor %}
+          </td>
+          <td>
+            {% if i.curso.sala %}
+              <span class="badge badge-sala">{{ i.curso.sala_label() }}</span>
+            {% else %}—{% endif %}
+          </td>
+          <td>${{ i.arancel_final|moneda }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+    <p class="text-muted" style="font-size:13px;">No estás inscripto en ningún curso todavía.</p>
+  {% endif %}
+</div>
+
+<div class="ficha-card ficha-card--full" style="margin-top:1rem;" id="mis-pagos">
+  <h3 class="ficha-card-title">Mis pagos</h3>
+  {% if ultimos_pagos %}
+  <div class="table-wrapper" style="border:none; background:transparent;">
+    <table class="tabla">
+      <thead>
+        <tr><th>Fecha</th><th>Curso</th><th>Período</th><th>Monto</th><th>Tipo</th><th>Comprobante</th></tr>
+      </thead>
+      <tbody>
+        {% for pago in ultimos_pagos %}
+        <tr>
+          <td>{{ pago.fecha_pago.strftime('%d/%m/%Y') }}</td>
+          <td>{{ pago.inscripcion.curso.nombre }}</td>
+          <td>{{ pago.periodo_str }}</td>
+          <td style="font-weight:600; color:var(--success-text);">${{ pago.monto|moneda }}</td>
+          <td>{{ pago.tipo_pago|capitalize }}</td>
+          <td><a href="{{ url_for('caja.comprobante_pago', pago_id=pago.id) }}" class="btn-link" target="_blank">🖨 Ver</a></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+    <p class="text-muted" style="font-size:13px;">No tenés pagos registrados todavía.</p>
+  {% endif %}
+</div>
+
+<div class="cal-popup-overlay" id="popup-overlay" style="display:none;">
+  <div class="cal-popup">
+    <div class="cal-popup-header">
+      <span id="popup-fecha"></span>
+      <button class="cal-popup-close" id="popup-close">&#x2715;</button>
+    </div>
+    <div class="cal-popup-body" id="popup-body"></div>
+  </div>
+</div>
+
+<div class="dashboard-footer">
+  Sistema desarrollado por <strong>Franco Ontivero</strong>
+</div>
+
+<script>
+const clasesData = {{ clases_json | safe }};
+const CONF_COLORS = { si:'#1A5C3A', no:'#5C1A1A', pendiente:'#3A3A1A' };
+const CONF_LABELS = { si:'Confirmado', no:'No va', pendiente:'Sin confirmar' };
+const MESES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+const DIAS  = ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'];
+const COLORES = ['#7A2020','#5C1A3A','#1A3A5C','#1A5C3A','#5C3A1A','#3A1A5C','#5C5C1A','#1A5C5C'];
+const cursoColores = {};
+let colorIdx = 0;
+clasesData.forEach(c => { if (!cursoColores[c.curso_id]) cursoColores[c.curso_id] = COLORES[colorIdx++ % COLORES.length]; });
+let anioActual, mesActual;
+
+async function cargarCumpleanios(anio, mes) {
+  try {
+    const resp = await fetch(`/cumpleanios/api/mes/${anio}/${mes}`);
+    const data = await resp.json();
+    data.forEach(c => {
+      const mm = String(mes).padStart(2, '0');
+      const dd = String(c.dia).padStart(2, '0');
+      const celda = document.querySelector(`[data-fecha="${anio}-${mm}-${dd}"]`);
+      if (celda) {
+        const torta = document.createElement('span');
+        torta.className = 'cal-cumple';
+        torta.title = `🎂 ${c.nombre} (${c.tipo})`;
+        torta.textContent = '🎂';
+        celda.appendChild(torta);
+      }
+    });
+  } catch(e) { console.log('Error cumpleaños:', e); }
+}
+
+function init() {
+  const h = new Date();
+  anioActual = h.getFullYear();
+  mesActual  = h.getMonth();
+  renderCalendario();
+}
+
+function renderCalendario() {
+  document.getElementById('cal-titulo').textContent = MESES[mesActual] + ' ' + anioActual;
+  const grid = document.getElementById('cal-grid');
+  grid.innerHTML = '';
+  DIAS.forEach(d => { const c = document.createElement('div'); c.className='cal-dia-header'; c.textContent=d; grid.appendChild(c); });
+  const primerDia = new Date(anioActual, mesActual, 1).getDay();
+  const diasEnMes = new Date(anioActual, mesActual + 1, 0).getDate();
+  const hoy = new Date();
+  for (let i = 0; i < primerDia; i++) { const c = document.createElement('div'); c.className='cal-cell cal-cell--vacio'; grid.appendChild(c); }
+  for (let dia = 1; dia <= diasEnMes; dia++) {
+    const mm = String(mesActual + 1).padStart(2, '0');
+    const dd = String(dia).padStart(2, '0');
+    const fechaStr = anioActual + '-' + mm + '-' + dd;
+    const del_dia = clasesData.filter(c => c.fecha === fechaStr);
+    const cell = document.createElement('div');
+    cell.className = 'cal-cell';
+    cell.setAttribute('data-fecha', fechaStr);
+    if (hoy.getFullYear() === anioActual && hoy.getMonth() === mesActual && hoy.getDate() === dia) cell.classList.add('cal-cell--hoy');
+    if (del_dia.length) cell.classList.add('cal-cell--con-clases');
+    const num = document.createElement('span'); num.className='cal-num'; num.textContent=dia; cell.appendChild(num);
+    if (del_dia.length) {
+      const dots = document.createElement('div'); dots.className='cal-dots';
+      del_dia.forEach(c => {
+        const d = document.createElement('span'); d.className='cal-dot';
+        d.style.background = CONF_COLORS[c.confirmacion] || '#7A2020';
+        d.title = c.curso_nombre + ' — ' + (CONF_LABELS[c.confirmacion] || '');
+        dots.appendChild(d);
+      });
+      cell.appendChild(dots);
+      cell.addEventListener('click', () => mostrarPopup(fechaStr, del_dia));
+    }
+    grid.appendChild(cell);
+  }
+  cargarCumpleanios(anioActual, mesActual + 1);
+}
+
+function mostrarPopup(fechaStr, clases) {
+  const [a, m, d] = fechaStr.split('-');
+  document.getElementById('popup-fecha').textContent = d + '/' + m + '/' + a;
+  const body = document.getElementById('popup-body'); body.innerHTML = '';
+  clases.forEach(c => {
+    const item = document.createElement('div'); item.className='popup-clase';
+    item.style.borderLeftColor = CONF_COLORS[c.confirmacion] || '#7A2020';
+    const confLabel = CONF_LABELS[c.confirmacion] || 'Pendiente';
+    const confClass = c.confirmacion==='si' ? 'badge-activo' : c.confirmacion==='no' ? 'badge-inactivo' : 'badge-alumno';
+    item.innerHTML = '<div class="popup-clase-nombre">' + c.curso_nombre + '</div>' +
+      '<div class="popup-clase-info">' +
+        '<span>&#128336; ' + c.hora_inicio + ' &ndash; ' + c.hora_fin + '</span>' +
+        '<span class="badge ' + confClass + '" style="font-size:11px;">' + confLabel + '</span>' +
+        (c.sala ? '<span>&#127963; ' + c.sala + '</span>' : '') +
+        '<span class="popup-estado estado-' + c.estado + '">' + c.estado + '</span>' +
+      '</div>' +
+      '<div class="popup-clase-prof">&#128204; ' + c.profesor + '</div>';
+    body.appendChild(item);
+  });
+  document.getElementById('popup-overlay').style.display = 'flex';
+}
+
+document.getElementById('popup-close').addEventListener('click', () => { document.getElementById('popup-overlay').style.display='none'; });
+document.getElementById('popup-overlay').addEventListener('click', e => { if(e.target.id==='popup-overlay') document.getElementById('popup-overlay').style.display='none'; });
+document.getElementById('btn-prev').addEventListener('click', () => { if(--mesActual<0){mesActual=11;anioActual--;} renderCalendario(); });
+document.getElementById('btn-next').addEventListener('click', () => { if(++mesActual>11){mesActual=0;anioActual++;} renderCalendario(); });
+init();
+</script>
+{% endblock %}

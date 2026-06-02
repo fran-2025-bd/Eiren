@@ -1,0 +1,170 @@
+{% extends "base.html" %}
+{% block title %}{{ alumno.usuario.nombre }} · Eiren{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h2>{{ alumno.usuario.nombre }}</h2>
+    <span class="badge {{ 'badge-activo' if alumno.usuario.activo else 'badge-inactivo' }}">
+      {{ 'Activo' if alumno.usuario.activo else 'Inactivo' }}
+    </span>
+  </div>
+  <div class="page-header-actions">
+    <a href="{{ url_for('alumnos.editar', alumno_id=alumno.id) }}" class="btn btn-secondary">Editar</a>
+    <a href="{{ url_for('alumnos.listado') }}" class="btn btn-ghost">← Volver</a>
+  </div>
+</div>
+
+<div class="ficha-grid">
+
+  <div class="ficha-card">
+    <h3 class="ficha-card-title">Datos de acceso</h3>
+    <dl class="ficha-dl">
+      <dt>Usuario</dt>
+      <dd>{{ alumno.usuario.username }}</dd>
+      <dt>Alta en sistema</dt>
+      <dd>{{ alumno.fecha_alta.strftime('%d/%m/%Y') if alumno.fecha_alta else '—' }}</dd>
+    </dl>
+  </div>
+
+  <div class="ficha-card">
+    <h3 class="ficha-card-title">Datos personales</h3>
+    <dl class="ficha-dl">
+      <dt>DNI</dt>        <dd>{{ alumno.dni or '—' }}</dd>
+      <dt>Teléfono</dt>   <dd>{{ alumno.telefono or '—' }}</dd>
+      <dt>Nacimiento</dt> <dd>{{ alumno.fecha_nacimiento.strftime('%d/%m/%Y') if alumno.fecha_nacimiento else '—' }}</dd>
+      <dt>Dirección</dt>  <dd>{{ alumno.direccion or '—' }}</dd>
+      <dt>Email</dt>      <dd>{{ alumno.email_contacto or '—' }}</dd>
+    </dl>
+  </div>
+
+  <div class="ficha-card">
+    <h3 class="ficha-card-title">Contacto de emergencia</h3>
+    <dl class="ficha-dl">
+      <dt>Nombre</dt>   <dd>{{ alumno.emergencia_nombre or '—' }}</dd>
+      <dt>Teléfono</dt> <dd>{{ alumno.emergencia_telefono or '—' }}</dd>
+    </dl>
+  </div>
+
+  {% if alumno.notas %}
+  <div class="ficha-card ficha-card--full">
+    <h3 class="ficha-card-title">Notas internas</h3>
+    <p class="ficha-notas">{{ alumno.notas }}</p>
+  </div>
+  {% endif %}
+
+  {# Cursos inscripto #}
+  <div class="ficha-card ficha-card--full">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:.75rem;">
+      <h3 class="ficha-card-title" style="margin-bottom:0;">
+        Cursos inscripto ({{ alumno.inscripciones|selectattr('activo')|list|length }})
+      </h3>
+    </div>
+
+    {% set inscripciones_activas = alumno.inscripciones|selectattr('activo')|list %}
+
+    {% if inscripciones_activas %}
+    <div class="table-wrapper" style="border:none; background:transparent;">
+      <table class="tabla">
+        <thead>
+          <tr>
+            <th>Curso</th>
+            <th>Modalidad</th>
+            <th>Horarios</th>
+            <th>Arancel acordado</th>
+            <th>Descuento</th>
+            <th>Arancel final</th>
+            <th>Reprogramaciones</th>
+            <th>Acciones</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for i in inscripciones_activas %}
+          <tr>
+            <td><strong>{{ i.curso.nombre }}</strong></td>
+            <td>{{ i.curso.modalidad_label() }}</td>
+            <td style="font-size:12px; color:var(--text-muted);">{{ i.curso.horarios_str() or '—' }}</td>
+            <td>${{ i.arancel_acordado|moneda }}</td>
+            <td>{{ i.descuento_pct|int }}%</td>
+            <td>${{ i.arancel_final|moneda }}</td>
+            <td>
+              {% if i.reprogramaciones|length > 0 %}
+                <span class="badge badge-inactivo">{{ i.reprogramaciones|length }}</span>
+              {% else %}
+                —
+              {% endif %}
+            </td>
+            <td class="acciones">
+              <a href="{{ url_for('cursos.ficha', curso_id=i.curso_id) }}" class="btn-link">Ver curso</a>
+              <a href="{{ url_for('cursos.editar_inscripcion', inscripcion_id=i.id) }}" class="btn-link">Editar arancel</a>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+      <p class="text-muted" style="font-size:13px;">Este alumno no está inscripto en ningún curso todavía.</p>
+    {% endif %}
+  </div>
+
+  {# Historial de pagos #}
+  <div class="ficha-card ficha-card--full">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:.75rem;">
+      <h3 class="ficha-card-title" style="margin-bottom:0;">
+        Historial de pagos
+      </h3>
+      <a href="{{ url_for('caja.pago_alumno') }}" class="btn btn-primary" style="font-size:12px; padding:6px 12px;">
+        + Registrar pago
+      </a>
+    </div>
+
+    {% set todos_pagos = [] %}
+    {% for i in alumno.inscripciones %}
+      {% for p in i.pagos %}
+        {% if todos_pagos.append(p) %}{% endif %}
+      {% endfor %}
+    {% endfor %}
+    {% set pagos_ordenados = todos_pagos|sort(attribute='fecha_pago', reverse=True) %}
+
+    {% if pagos_ordenados %}
+    <div class="table-wrapper" style="border:none; background:transparent;">
+      <table class="tabla">
+        <thead>
+          <tr>
+            <th>Fecha</th>
+            <th>Curso</th>
+            <th>Período</th>
+            <th>Monto</th>
+            <th>Tipo de pago</th>
+            <th>Comprobante</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for pago in pagos_ordenados %}
+          <tr>
+            <td>{{ pago.fecha_pago.strftime('%d/%m/%Y') }}</td>
+            <td>{{ pago.inscripcion.curso.nombre }}</td>
+            <td>{{ pago.periodo_str }}</td>
+            <td style="font-weight:600; color:var(--success-text);">
+              ${{ pago.monto|moneda }}
+            </td>
+            <td>{{ pago.tipo_pago|capitalize }}</td>
+            <td>
+              <a href="{{ url_for('caja.comprobante_pago', pago_id=pago.id) }}"
+                 class="btn-link" target="_blank">
+                🖨 Ver comprobante
+              </a>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+      <p class="text-muted" style="font-size:13px;">Este alumno no tiene pagos registrados todavía.</p>
+    {% endif %}
+  </div>
+
+</div>
+{% endblock %}

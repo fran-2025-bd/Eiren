@@ -1,0 +1,23 @@
+# Core Flask
+flask==3.0.3
+flask-login==0.6.3
+flask-sqlalchemy==3.1.1
+flask-wtf==1.2.1
+werkzeug==3.0.3
+
+# Base de datos
+psycopg2-binary==2.9.9
+
+# Variables de entorno
+python-dotenv==1.0.1
+
+# Google Sheets / N8N integration
+gspread==6.1.2
+google-auth==2.29.0
+google-auth-oauthlib==1.2.0
+
+# Exportación Excel (módulo caja)
+openpyxl>=3.1.0
+
+# Manejo de fechas (calendario dashboard)
+python-dateutil>=2.9.0

@@ -1,0 +1,128 @@
+{% extends "base.html" %}
+{% block title %}Movimientos · Eiren{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h2>Buscador de movimientos</h2>
+    <p class="text-muted">{{ movimientos|length }} resultado{{ 's' if movimientos|length != 1 }}</p>
+  </div>
+  <div class="page-header-actions">
+    <a href="{{ url_for('caja.exportar_movimientos', q=q, mes=mes, anio=anio, tipo=tipo, cuenta=cuenta) }}"
+       class="btn btn-secondary">📥 Exportar Excel</a>
+    <a href="{{ url_for('caja.index') }}" class="btn btn-ghost">← Caja</a>
+  </div>
+</div>
+
+<div class="form-section" style="margin-bottom:1rem;">
+  <form method="GET">
+    <div class="form-grid">
+      <div class="form-group form-group--full">
+        <label>Buscar en descripción</label>
+        <input type="text" name="q" value="{{ q }}"
+               placeholder="Nombre alumno, concepto, descripción...">
+      </div>
+      <div class="form-group">
+        <label>Mes</label>
+        <select name="mes">
+          <option value="">— Todos —</option>
+          {% for n, nombre in [(1,'Enero'),(2,'Febrero'),(3,'Marzo'),(4,'Abril'),
+                               (5,'Mayo'),(6,'Junio'),(7,'Julio'),(8,'Agosto'),
+                               (9,'Septiembre'),(10,'Octubre'),(11,'Noviembre'),(12,'Diciembre')] %}
+            <option value="{{ n }}" {{ 'selected' if n == mes }}>{{ nombre }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Año</label>
+        <input type="number" name="anio" value="{{ anio or '' }}"
+               placeholder="2025" min="2024" max="2035">
+      </div>
+      <div class="form-group">
+        <label>Tipo</label>
+        <select name="tipo">
+          <option value="">— Todos —</option>
+          <option value="ingreso" {{ 'selected' if tipo == 'ingreso' }}>Ingreso</option>
+          <option value="egreso"  {{ 'selected' if tipo == 'egreso'  }}>Egreso</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Cuenta</label>
+        <select name="cuenta">
+          <option value="">— Todas —</option>
+          <option value="efectivo"      {{ 'selected' if cuenta == 'efectivo'      }}>Efectivo</option>
+          <option value="transferencia" {{ 'selected' if cuenta == 'transferencia' }}>Transferencia</option>
+          <option value="otro"          {{ 'selected' if cuenta == 'otro'          }}>Otro</option>
+        </select>
+      </div>
+      <div class="form-group" style="justify-content:flex-end;">
+        <button type="submit" class="btn btn-secondary" style="margin-top:20px;">Buscar</button>
+        <a href="{{ url_for('caja.movimientos') }}" class="btn btn-ghost" style="margin-top:20px;">Limpiar</a>
+      </div>
+    </div>
+  </form>
+</div>
+
+{% if movimientos %}
+<div class="ficha-grid" style="margin-bottom:1rem;">
+  <div class="ficha-card">
+    <h3 class="ficha-card-title">Total ingresos</h3>
+    <div style="font-size:1.3rem; font-weight:600; color:var(--success-text);">
+      ${{ total_ingresos|moneda }}
+    </div>
+  </div>
+  <div class="ficha-card">
+    <h3 class="ficha-card-title">Total egresos</h3>
+    <div style="font-size:1.3rem; font-weight:600; color:var(--danger-text);">
+      ${{ total_egresos|moneda }}
+    </div>
+  </div>
+  <div class="ficha-card">
+    <h3 class="ficha-card-title">Balance</h3>
+    {% set balance = total_ingresos - total_egresos %}
+    <div style="font-size:1.3rem; font-weight:600;
+                color:{{ 'var(--success-text)' if balance >= 0 else 'var(--danger-text)' }}">
+      ${{ balance|moneda }}
+    </div>
+  </div>
+</div>
+
+<div class="table-wrapper">
+  <table class="tabla">
+    <thead>
+      <tr>
+        <th>Fecha</th>
+        <th>Tipo</th>
+        <th>Categoría</th>
+        <th>Descripción</th>
+        <th>Cuenta</th>
+        <th>Monto</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for m in movimientos %}
+      <tr>
+        <td>{{ m.fecha.strftime('%d/%m/%Y') }}</td>
+        <td>
+          <span class="badge {{ 'badge-activo' if m.tipo == 'ingreso' else 'badge-inactivo' }}">
+            {{ m.tipo|capitalize }}
+          </span>
+        </td>
+        <td style="font-size:12px;">{{ m.categoria_label }}</td>
+        <td style="font-size:13px;">{{ m.descripcion }}</td>
+        <td>{{ m.cuenta.nombre|capitalize }}</td>
+        <td style="font-weight:600;
+                   color:{{ 'var(--success-text)' if m.tipo == 'ingreso' else 'var(--danger-text)' }}">
+          {{ '+' if m.tipo == 'ingreso' else '-' }}${{ m.monto|moneda }}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<div class="empty-state">
+  <p>No se encontraron movimientos con los filtros aplicados.</p>
+</div>
+{% endif %}
+{% endblock %}

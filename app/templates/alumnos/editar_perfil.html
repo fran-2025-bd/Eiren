@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% block title %}Mi perfil · Eiren{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h2>Mi perfil</h2>
+    <p class="text-muted">{{ current_user.nombre }}</p>
+  </div>
+  <a href="{{ url_for('auth.dashboard_alumno') }}" class="btn btn-ghost">← Volver</a>
+</div>
+
+<form method="POST" novalidate>
+  {{ form.hidden_tag() }}
+
+  <div class="form-section">
+    <h3 class="form-section-title">Datos de contacto</h3>
+    <div class="form-grid">
+
+      <div class="form-group">
+        <label>Nombre completo</label>
+        <input type="text" value="{{ current_user.nombre }}" disabled>
+      </div>
+
+      <div class="form-group">
+        <label>Usuario</label>
+        <input type="text" value="{{ current_user.username }}" disabled>
+      </div>
+
+      <div class="form-group {% if form.telefono.errors %}has-error{% endif %}">
+        {{ form.telefono.label }}
+        {{ form.telefono(placeholder="3804 123456") }}
+        {% for e in form.telefono.errors %}<span class="form-error">{{ e }}</span>{% endfor %}
+      </div>
+
+      <div class="form-group {% if form.email_contacto.errors %}has-error{% endif %}">
+        {{ form.email_contacto.label }}
+        {{ form.email_contacto(placeholder="tu@email.com") }}
+        {% for e in form.email_contacto.errors %}<span class="form-error">{{ e }}</span>{% endfor %}
+      </div>
+
+    </div>
+    <p class="form-hint" style="margin-top:.5rem;">
+      Para modificar otros datos como tu DNI o dirección, contactá al administrador.
+    </p>
+  </div>
+
+  <div class="form-actions">
+    {{ form.submit(class="btn btn-primary") }}
+    <a href="{{ url_for('auth.dashboard_alumno') }}" class="btn btn-ghost">Cancelar</a>
+  </div>
+</form>
+{% endblock %}

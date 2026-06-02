@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block title %}Editar arancel · Eiren{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h2>Editar arancel</h2>
+    <p class="text-muted">
+      {{ inscripcion.alumno.usuario.nombre }} — {{ inscripcion.curso.nombre }}
+    </p>
+  </div>
+  <a href="{{ url_for('cursos.ficha', curso_id=inscripcion.curso_id) }}" class="btn btn-ghost">← Volver</a>
+</div>
+
+<form method="POST" novalidate>
+  {{ form.hidden_tag() }}
+
+  <div class="form-section">
+    <h3 class="form-section-title">Actualizar arancel</h3>
+    <div class="form-grid">
+
+      <div class="form-group">
+        <label>Alumno</label>
+        <input type="text" value="{{ inscripcion.alumno.usuario.nombre }}" disabled>
+      </div>
+
+      <div class="form-group">
+        <label>Curso</label>
+        <input type="text" value="{{ inscripcion.curso.nombre }}" disabled>
+      </div>
+
+      <div class="form-group {% if form.arancel_acordado.errors %}has-error{% endif %}">
+        {{ form.arancel_acordado.label }}
+        {{ form.arancel_acordado(placeholder="0.00") }}
+        <span class="form-hint">Arancel base del curso: ${{ '%.2f'|format(inscripcion.curso.arancel_base) }}</span>
+        {% for e in form.arancel_acordado.errors %}<span class="form-error">{{ e }}</span>{% endfor %}
+      </div>
+
+      <div class="form-group {% if form.descuento_pct.errors %}has-error{% endif %}">
+        {{ form.descuento_pct.label }}
+        {{ form.descuento_pct(placeholder="0") }}
+        <span class="form-hint">Arancel final: se calcula automáticamente.</span>
+        {% for e in form.descuento_pct.errors %}<span class="form-error">{{ e }}</span>{% endfor %}
+      </div>
+
+    </div>
+  </div>
+
+  <div class="form-actions">
+    {{ form.submit(class="btn btn-primary") }}
+    <a href="{{ url_for('cursos.ficha', curso_id=inscripcion.curso_id) }}" class="btn btn-ghost">Cancelar</a>
+  </div>
+</form>
+{% endblock %}

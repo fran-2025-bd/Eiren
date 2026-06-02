@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+{% block title %}Resumen {{ mes }}/{{ anio }} · {{ curso.nombre }}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h2>Resumen de asistencia</h2>
+    <p class="text-muted">{{ curso.nombre }} · {{ mes }}/{{ anio }}</p>
+  </div>
+  <a href="{{ url_for('asistencia.index', curso_id=curso.id, anio=anio, mes=mes) }}"
+     class="btn btn-ghost">← Volver</a>
+</div>
+
+<div class="ficha-card ficha-card--full" style="margin-bottom:1rem;">
+  <dl class="ficha-dl">
+    <dt>Clases del mes</dt>   <dd>{{ total_clases }}</dd>
+    <dt>Profesor</dt>         <dd>{{ curso.profesor.usuario.nombre }}</dd>
+    <dt>Condición de pago</dt><dd>{{ curso.profesor.condicion_pago_label() }}</dd>
+  </dl>
+</div>
+
+{% if resumen %}
+<div class="table-wrapper">
+  <table class="tabla">
+    <thead>
+      <tr>
+        <th>Alumno</th>
+        <th>Clases asistidas</th>
+        <th>Total clases</th>
+        <th>% Asistencia</th>
+        <th>Arancel acordado</th>
+        <th>Estado pago</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for r in resumen %}
+      <tr>
+        <td><strong>{{ r.alumno }}</strong></td>
+        <td>{{ r.presentes }}</td>
+        <td>{{ r.total_clases }}</td>
+        <td>
+          <div style="display:flex; align-items:center; gap:8px;">
+            <div class="progress-bar">
+              <div class="progress-fill" style="width:{{ r.porcentaje }}%"></div>
+            </div>
+            <span style="font-size:13px;">{{ r.porcentaje }}%</span>
+          </div>
+        </td>
+        <td>${{ r.inscripcion.arancel_final|moneda }}</td>
+        <td>
+          <span class="badge badge-alumno">— Módulo pagos —</span>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<div class="empty-state">
+  <p>No hay alumnos inscriptos en este curso.</p>
+</div>
+{% endif %}
+{% endblock %}

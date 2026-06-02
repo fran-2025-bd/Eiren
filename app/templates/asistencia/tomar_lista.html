@@ -1,0 +1,144 @@
+{% extends "base.html" %}
+{% block title %}Lista · {{ clase.fecha.strftime('%d/%m/%Y') }} · Eiren{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h2>{{ clase.curso.nombre }}</h2>
+    <p class="text-muted">
+      {{ clase.fecha.strftime('%d/%m/%Y') }} · {{ clase.hora_inicio }} – {{ clase.hora_fin }}
+    </p>
+  </div>
+  <a href="{{ url_for('asistencia.index', curso_id=clase.curso_id,
+             anio=clase.fecha.year, mes=clase.fecha.month) }}"
+     class="btn btn-ghost">← Volver</a>
+</div>
+
+{% if clase.asistencias %}
+<form method="POST">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+
+  <div class="form-section">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
+      <h3 class="form-section-title" style="margin-bottom:0;">
+        Lista de alumnos — {{ clase.asistencias|length }} inscriptos
+      </h3>
+      {% if clase.estado != 'realizada' %}
+      <div style="display:flex; gap:8px; align-items:center;">
+        <span class="form-hint">Marcar todos como:</span>
+        <button type="button" class="btn btn-secondary" style="font-size:12px; padding:5px 10px;"
+                onclick="marcarTodos('presente')">✓ Presentes</button>
+        <button type="button" class="btn btn-ghost" style="font-size:12px; padding:5px 10px;"
+                onclick="marcarTodos('ausente')">✗ Ausentes</button>
+      </div>
+      {% endif %}
+    </div>
+
+    <div class="table-wrapper" style="border:none; background:transparent;">
+      <table class="tabla">
+        <thead>
+          <tr>
+            <th>Alumno</th>
+            <th>Confirmó asistencia</th>
+            <th>Estado de asistencia</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for a in clase.asistencias %}
+          <tr>
+            <td><strong>{{ a.inscripcion.alumno.usuario.nombre }}</strong></td>
+
+            <td>
+              {% if a.confirmacion == 'si' %}
+                <span class="badge badge-activo">✓ Confirmó</span>
+              {% elif a.confirmacion == 'no' %}
+                <span class="badge badge-inactivo">✗ No va</span>
+              {% else %}
+                <span class="badge badge-alumno">Pendiente</span>
+              {% endif %}
+            </td>
+
+            <td>
+              {% if clase.estado == 'realizada' %}
+                {% if a.asistencia == 'presente' %}
+                  <span class="badge badge-activo">Presente</span>
+                {% elif a.asistencia == 'ausente_deuda' %}
+                  <span class="badge badge-inactivo">Ausente c/deuda</span>
+                {% elif a.asistencia == 'ausente' %}
+                  <span class="badge badge-inactivo">Ausente</span>
+                {% elif a.asistencia == 'justificado' %}
+                  <span class="badge badge-grupal">Justificado</span>
+                {% else %}
+                  <span class="badge badge-alumno">—</span>
+                {% endif %}
+              {% else %}
+                <select name="asist_{{ a.id }}" class="select-asistencia">
+                  <option value="pendiente"
+                    {{ 'selected' if a.asistencia == 'pendiente' }}>
+                    — Sin registrar —
+                  </option>
+                  <option value="presente"
+                    {{ 'selected' if a.asistencia == 'presente' }}>
+                    ✓ Presente
+                  </option>
+                  <option value="ausente"
+                    {{ 'selected' if a.asistencia == 'ausente' }}>
+                    ✗ Ausente
+                  </option>
+                  <option value="ausente_deuda"
+                    {{ 'selected' if a.asistencia == 'ausente_deuda' }}>
+                    ✗ Ausente con deuda
+                  </option>
+                  <option value="justificado"
+                    {{ 'selected' if a.asistencia == 'justificado' }}>
+                    ~ Justificado
+                  </option>
+                </select>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  {% if clase.estado != 'realizada' %}
+  <div class="form-actions">
+    <button type="submit" class="btn btn-primary">Guardar asistencia</button>
+    <a href="{{ url_for('asistencia.index', curso_id=clase.curso_id,
+               anio=clase.fecha.year, mes=clase.fecha.month) }}"
+       class="btn btn-ghost">Cancelar</a>
+  </div>
+  {% endif %}
+
+</form>
+
+{% else %}
+<div class="empty-state">
+  <p>No hay alumnos inscriptos en este curso.</p>
+</div>
+{% endif %}
+
+<script>
+function marcarTodos(valor) {
+  document.querySelectorAll('.select-asistencia').forEach(sel => {
+    sel.value = valor;
+    actualizarColor(sel);
+  });
+}
+
+function actualizarColor(sel) {
+  sel.className = 'select-asistencia';
+  if (sel.value === 'presente')      sel.classList.add('sel-presente');
+  if (sel.value === 'ausente')       sel.classList.add('sel-ausente');
+  if (sel.value === 'ausente_deuda') sel.classList.add('sel-ausente');
+  if (sel.value === 'justificado')   sel.classList.add('sel-justificado');
+}
+
+document.querySelectorAll('.select-asistencia').forEach(sel => {
+  actualizarColor(sel);
+  sel.addEventListener('change', () => actualizarColor(sel));
+});
+</script>
+{% endblock %}

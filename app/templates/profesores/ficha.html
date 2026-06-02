@@ -1,0 +1,172 @@
+{% extends "base.html" %}
+{% block title %}{{ profesor.usuario.nombre }} · Eiren{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h2>{{ profesor.usuario.nombre }}</h2>
+    <span class="badge {{ 'badge-activo' if profesor.usuario.activo else 'badge-inactivo' }}">
+      {{ 'Activo' if profesor.usuario.activo else 'Inactivo' }}
+    </span>
+  </div>
+  <div class="page-header-actions">
+    <a href="{{ url_for('profesores.editar', profesor_id=profesor.id) }}"
+       class="btn btn-secondary">Editar</a>
+    <a href="{{ url_for('profesores.listado') }}" class="btn btn-ghost">← Volver</a>
+  </div>
+</div>
+
+<div class="ficha-grid">
+
+  <div class="ficha-card">
+    <h3 class="ficha-card-title">Datos de acceso</h3>
+    <dl class="ficha-dl">
+      <dt>Usuario</dt>
+      <dd>{{ profesor.usuario.username }}</dd>
+      <dt>Rol</dt>
+      <dd><span class="badge badge-profesor">profesor</span></dd>
+    </dl>
+  </div>
+
+  <div class="ficha-card">
+    <h3 class="ficha-card-title">Datos personales</h3>
+    <dl class="ficha-dl">
+      <dt>DNI</dt>       <dd>{{ profesor.dni or '—' }}</dd>
+      <dt>Teléfono</dt>  <dd>{{ profesor.telefono or '—' }}</dd>
+      <dt>Email</dt>     <dd>{{ profesor.email_contacto or '—' }}</dd>
+      <dt>Dirección</dt> <dd>{{ profesor.direccion or '—' }}</dd>
+      <dt>Nacimiento</dt> <dd>{{ profesor.fecha_nacimiento.strftime('%d/%m/%Y') if profesor.fecha_nacimiento else '—' }}</dd>
+    </dl>
+  </div>
+
+  <div class="ficha-card">
+    <h3 class="ficha-card-title">Condición de pago</h3>
+    <dl class="ficha-dl">
+      <dt>Modalidad</dt>
+      <dd>{{ profesor.condicion_pago_label() }}</dd>
+    </dl>
+    <p class="ficha-notas" style="margin-top:.75rem; font-size:12px;">
+      Las liquidaciones se calculan sobre clases asistidas × 70%.
+    </p>
+  </div>
+
+  {% if profesor.notas %}
+  <div class="ficha-card ficha-card--full">
+    <h3 class="ficha-card-title">Notas internas</h3>
+    <p class="ficha-notas">{{ profesor.notas }}</p>
+  </div>
+  {% endif %}
+
+  {# Cursos a cargo #}
+  <div class="ficha-card ficha-card--full">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:.75rem;">
+      <h3 class="ficha-card-title" style="margin-bottom:0;">
+        Cursos a cargo ({{ profesor.cursos|length }})
+      </h3>
+      <a href="{{ url_for('cursos.nuevo') }}" class="btn btn-secondary" style="font-size:12px; padding:6px 12px;">
+        + Nuevo curso
+      </a>
+    </div>
+
+    {% if profesor.cursos %}
+    <div class="table-wrapper" style="border:none; background:transparent;">
+      <table class="tabla">
+        <thead>
+          <tr>
+            <th>Curso</th>
+            <th>Modalidad</th>
+            <th>Horarios</th>
+            <th>Alumnos</th>
+            <th>Estado</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for c in profesor.cursos %}
+          <tr class="{{ 'row-inactivo' if not c.activo }}">
+            <td><strong>{{ c.nombre }}</strong></td>
+            <td>{{ c.modalidad_label() }}</td>
+            <td style="font-size:12px; color:var(--text-muted);">{{ c.horarios_str() or '—' }}</td>
+            <td>{{ c.alumnos_activos()|length }}</td>
+            <td>
+              <span class="badge {{ 'badge-activo' if c.activo else 'badge-inactivo' }}">
+                {{ 'Activo' if c.activo else 'Inactivo' }}
+              </span>
+            </td>
+            <td>
+              <a href="{{ url_for('cursos.ficha', curso_id=c.id) }}" class="btn-link">Ver</a>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+      <p class="text-muted" style="font-size:13px;">Este profesor no tiene cursos asignados todavía.</p>
+    {% endif %}
+  </div>
+
+  {# Historial de liquidaciones #}
+  <div class="ficha-card ficha-card--full">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:.75rem;">
+      <h3 class="ficha-card-title" style="margin-bottom:0;">
+        Historial de liquidaciones
+      </h3>
+      <a href="{{ url_for('caja.nueva_liquidacion') }}"
+         class="btn btn-primary" style="font-size:12px; padding:6px 12px;">
+        + Nueva liquidación
+      </a>
+    </div>
+
+    {% set liquidaciones = profesor.liquidaciones|sort(attribute='periodo_anio', reverse=True) %}
+
+    {% if liquidaciones %}
+    <div class="table-wrapper" style="border:none; background:transparent;">
+      <table class="tabla">
+        <thead>
+          <tr>
+            <th>Período</th>
+            <th>Confirmado</th>
+            <th>Pendiente</th>
+            <th>Total</th>
+            <th>Estado</th>
+            <th>Fecha pago</th>
+            <th>Comprobante</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for liq in liquidaciones %}
+          <tr>
+            <td><strong>{{ liq.periodo_str }}</strong></td>
+            <td style="color:var(--success-text);">${{ liq.monto_confirmado|moneda }}</td>
+            <td style="color:var(--warning-text);">${{ liq.monto_pendiente|moneda }}</td>
+            <td style="font-weight:600;">${{ liq.monto_total|moneda }}</td>
+            <td>
+              <span class="badge
+                {% if liq.estado == 'pagada' %}badge-activo
+                {% elif liq.estado == 'generada' %}badge-alumno
+                {% else %}badge-inactivo{% endif %}">
+                {{ liq.estado|capitalize }}
+              </span>
+            </td>
+            <td>{{ liq.fecha_pago.strftime('%d/%m/%Y') if liq.fecha_pago else '—' }}</td>
+            <td class="acciones">
+              <a href="{{ url_for('caja.ver_liquidacion', liq_id=liq.id) }}"
+                 class="btn-link">Ver detalle</a>
+              <a href="{{ url_for('caja.comprobante_liquidacion', liq_id=liq.id) }}"
+                 class="btn-link" target="_blank">
+                🖨 Comprobante
+              </a>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+      <p class="text-muted" style="font-size:13px;">Este profesor no tiene liquidaciones registradas todavía.</p>
+    {% endif %}
+  </div>
+
+</div>
+{% endblock %}

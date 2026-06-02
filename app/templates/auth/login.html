@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block title %}Iniciar sesión · Eiren{% endblock %}
+
+{% block content %}
+<div class="login-wrapper">
+  <div class="login-card">
+    <h1 class="login-title">Eiren</h1>
+    <p class="login-subtitle">Sistema de gestión del estudio</p>
+
+    <form method="POST" action="{{ url_for('auth.login') }}" novalidate>
+      {{ form.hidden_tag() }}
+
+      <div class="form-group {% if form.username.errors %}has-error{% endif %}">
+        {{ form.username.label }}
+        {{ form.username(placeholder="tu.usuario", autocomplete="username") }}
+        {% for error in form.username.errors %}
+          <span class="form-error">{{ error }}</span>
+        {% endfor %}
+      </div>
+
+      <div class="form-group {% if form.password.errors %}has-error{% endif %}">
+        {{ form.password.label }}
+        {{ form.password(placeholder="Contraseña", autocomplete="current-password") }}
+        {% for error in form.password.errors %}
+          <span class="form-error">{{ error }}</span>
+        {% endfor %}
+      </div>
+
+      <div class="form-group form-check">
+        {{ form.remember() }}
+        {{ form.remember.label }}
+      </div>
+
+      {{ form.submit(class="btn btn-primary btn-full") }}
+    </form>
+  </div>
+</div>
+{% endblock %}

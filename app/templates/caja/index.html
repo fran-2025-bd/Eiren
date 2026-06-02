@@ -1,0 +1,143 @@
+{% extends "base.html" %}
+{% block title %}Caja · Eiren{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h2>Caja</h2>
+    <p class="text-muted">Arqueo y movimientos</p>
+  </div>
+  <div class="page-header-actions">
+    <a href="{{ url_for('caja.pago_alumno') }}"       class="btn btn-primary">+ Registrar pago</a>
+    <a href="{{ url_for('caja.nueva_liquidacion') }}"  class="btn btn-secondary">💲 Liquidar profesor</a>
+    <a href="{{ url_for('caja.movimiento_extra') }}"   class="btn btn-secondary">+ Movimiento extra</a>
+    <a href="{{ url_for('caja.ajuste_caja') }}"        class="btn btn-ghost">⚖ Ajuste de caja</a>
+  </div>
+</div>
+
+<div class="form-section" style="margin-bottom:1rem;">
+  <form method="GET" style="display:flex; gap:10px; align-items:flex-end; flex-wrap:wrap;">
+    <div class="form-group" style="margin:0;">
+      <label>Mes</label>
+      <select name="mes">
+        {% for n, nombre in [(1,'Enero'),(2,'Febrero'),(3,'Marzo'),(4,'Abril'),
+                             (5,'Mayo'),(6,'Junio'),(7,'Julio'),(8,'Agosto'),
+                             (9,'Septiembre'),(10,'Octubre'),(11,'Noviembre'),(12,'Diciembre')] %}
+          <option value="{{ n }}" {{ 'selected' if n == mes }}>{{ nombre }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="form-group" style="margin:0;">
+      <label>Año</label>
+      <input type="number" name="anio" value="{{ anio }}" min="2024" max="2035" style="width:100px;">
+    </div>
+    <button type="submit" class="btn btn-secondary">Ver período</button>
+    <a href="{{ url_for('caja.movimientos') }}" class="btn btn-ghost">🔍 Buscador</a>
+  </form>
+</div>
+
+<div class="arqueo-grid">
+  {% set total_consolidado = namespace(val=0) %}
+  {% for cuenta in cuentas %}
+    {% set total_consolidado.val = total_consolidado.val + cuenta.saldo_actual %}
+  {% endfor %}
+  {% for cuenta in cuentas %}
+  <div class="arqueo-card">
+    <div class="arqueo-nombre">{{ cuenta.nombre|capitalize }}</div>
+    <div class="arqueo-saldo">${{ cuenta.saldo_actual|moneda }}</div>
+    <div class="arqueo-hint">Saldo actual en tiempo real</div>
+  </div>
+  {% endfor %}
+  <div class="arqueo-card arqueo-card--total">
+    <div class="arqueo-nombre">Total consolidado</div>
+    <div class="arqueo-saldo">${{ total_consolidado.val|moneda }}</div>
+    <div class="arqueo-hint">Suma de todas las cuentas</div>
+  </div>
+</div>
+
+<div class="ficha-grid" style="margin:1rem 0;">
+  <div class="ficha-card">
+    <h3 class="ficha-card-title">Ingresos del mes</h3>
+    <div style="font-size:1.6rem; font-weight:600; color:var(--success-text);">
+      ${{ ingresos_mes|moneda }}
+    </div>
+  </div>
+  <div class="ficha-card">
+    <h3 class="ficha-card-title">Egresos del mes</h3>
+    <div style="font-size:1.6rem; font-weight:600; color:var(--danger-text);">
+      ${{ egresos_mes|moneda }}
+    </div>
+  </div>
+  <div class="ficha-card">
+    <h3 class="ficha-card-title">Balance del mes</h3>
+    {% set balance = ingresos_mes - egresos_mes %}
+    <div style="font-size:1.6rem; font-weight:600;
+                color:{{ 'var(--success-text)' if balance >= 0 else 'var(--danger-text)' }}">
+      ${{ balance|moneda }}
+    </div>
+  </div>
+  {% if liq_pendientes %}
+  <div class="ficha-card">
+    <h3 class="ficha-card-title">Liquidaciones pendientes</h3>
+    <div style="font-size:1.6rem; font-weight:600; color:var(--warning-text);">
+      {{ liq_pendientes|length }}
+    </div>
+    {% for l in liq_pendientes %}
+    <a href="{{ url_for('caja.ver_liquidacion', liq_id=l.id) }}" class="btn-link" style="font-size:12px;">
+      {{ l.profesor.usuario.nombre }} — {{ l.periodo_str }}
+    </a><br>
+    {% endfor %}
+  </div>
+  {% endif %}
+</div>
+
+<div class="ficha-card ficha-card--full">
+  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:.75rem;">
+    <h3 class="ficha-card-title" style="margin-bottom:0;">
+      Movimientos del mes ({{ movimientos_mes|length }})
+    </h3>
+    <a href="{{ url_for('caja.exportar_movimientos', mes=mes, anio=anio) }}"
+       class="btn btn-secondary" style="font-size:12px; padding:5px 10px;">
+      📥 Exportar Excel
+    </a>
+  </div>
+
+  {% if movimientos_mes %}
+  <div class="table-wrapper" style="border:none; background:transparent;">
+    <table class="tabla">
+      <thead>
+        <tr>
+          <th>Fecha</th>
+          <th>Tipo</th>
+          <th>Categoría</th>
+          <th>Descripción</th>
+          <th>Cuenta</th>
+          <th>Monto</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for m in movimientos_mes %}
+        <tr>
+          <td>{{ m.fecha.strftime('%d/%m/%Y') }}</td>
+          <td>
+            <span class="badge {{ 'badge-activo' if m.tipo == 'ingreso' else 'badge-inactivo' }}">
+              {{ m.tipo|capitalize }}
+            </span>
+          </td>
+          <td style="font-size:12px;">{{ m.categoria_label }}</td>
+          <td style="font-size:13px;">{{ m.descripcion }}</td>
+          <td>{{ m.cuenta.nombre|capitalize }}</td>
+          <td style="font-weight:600;
+                     color:{{ 'var(--success-text)' if m.tipo == 'ingreso' else 'var(--danger-text)' }}">
+            {{ '+' if m.tipo == 'ingreso' else '-' }}${{ m.monto|moneda }}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <p class="text-muted" style="font-size:13px;">No hay movimientos en este período.</p>
+  {% endif %}
+</div>
+{% endblock %}

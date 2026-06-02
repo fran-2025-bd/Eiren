@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+{% block title %}Alumnos · Eiren{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h2>Alumnos</h2>
+    <p class="text-muted">{{ alumnos|length }} alumno{{ 's' if alumnos|length != 1 }}</p>
+  </div>
+  <a href="{{ url_for('alumnos.nuevo') }}" class="btn btn-primary">+ Nuevo alumno</a>
+</div>
+
+<div class="search-bar">
+  <form method="GET" action="{{ url_for('alumnos.listado') }}">
+    <input type="text" name="q" value="{{ busqueda }}" placeholder="Buscar por nombre o DNI..." class="input-search">
+    <button type="submit" class="btn btn-secondary">Buscar</button>
+    {% if busqueda %}
+      <a href="{{ url_for('alumnos.listado') }}" class="btn btn-ghost">Limpiar</a>
+    {% endif %}
+  </form>
+</div>
+
+{% if alumnos %}
+<div class="table-wrapper">
+  <table class="tabla">
+    <thead>
+      <tr>
+        <th>Nombre</th>
+        <th>Usuario</th>
+        <th>DNI</th>
+        <th>Teléfono</th>
+        <th>Estado</th>
+        <th>Acciones</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for a in alumnos %}
+      <tr class="{{ 'row-inactivo' if not a.usuario.activo }}">
+        <td><strong>{{ a.usuario.nombre }}</strong></td>
+        <td class="text-muted">{{ a.usuario.username }}</td>
+        <td>{{ a.dni or '—' }}</td>
+        <td>{{ a.telefono or '—' }}</td>
+        <td>
+          <span class="badge {{ 'badge-activo' if a.usuario.activo else 'badge-inactivo' }}">
+            {{ 'Activo' if a.usuario.activo else 'Inactivo' }}
+          </span>
+        </td>
+        <td class="acciones">
+          <a href="{{ url_for('alumnos.ficha', alumno_id=a.id) }}" class="btn-link">Ver</a>
+          <a href="{{ url_for('alumnos.editar', alumno_id=a.id) }}" class="btn-link">Editar</a>
+          <form method="POST" action="{{ url_for('alumnos.toggle_activo', alumno_id=a.id) }}" style="display:inline">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <button type="submit" class="btn-link {{ 'text-danger' if a.usuario.activo else 'text-success' }}">
+              {{ 'Desactivar' if a.usuario.activo else 'Activar' }}
+            </button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<div class="empty-state">
+  <p>{{ 'No se encontraron alumnos para "' + busqueda + '"' if busqueda else 'Todavía no hay alumnos registrados.' }}</p>
+  {% if not busqueda %}
+    <a href="{{ url_for('alumnos.nuevo') }}" class="btn btn-primary">Agregar el primero</a>
+  {% endif %}
+</div>
+{% endif %}
+{% endblock %}

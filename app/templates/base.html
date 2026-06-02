@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}Eiren{% endblock %}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}">
+</head>
+<body>
+
+{% if current_user.is_authenticated %}
+<nav class="navbar">
+  <a href="{{ url_for('auth.dashboard') }}" class="navbar-brand">Eiren</a>
+
+  <div class="navbar-nav">
+
+    {% if current_user.es_admin() %}
+      <a href="{{ url_for('auth.dashboard') }}"
+         class="{{ 'active' if request.endpoint == 'auth.dashboard_admin' }}">
+        🏠 Inicio
+      </a>
+      <a href="{{ url_for('alumnos.listado') }}"
+         class="{{ 'active' if request.blueprint == 'alumnos' }}">
+        👥 Alumnos
+      </a>
+      <a href="{{ url_for('cursos.listado') }}"
+         class="{{ 'active' if request.blueprint == 'cursos' }}">
+        🏫 Cursos
+      </a>
+      <a href="{{ url_for('profesores.listado') }}"
+         class="{{ 'active' if request.blueprint == 'profesores' }}">
+        👨‍🏫 Profesores
+      </a>
+      <a href="{{ url_for('asistencia.index') }}"
+         class="{{ 'active' if request.blueprint == 'asistencia' }}">
+        📋 Asistencia
+      </a>
+      <a href="{{ url_for('caja.index') }}"
+         class="{{ 'active' if request.blueprint == 'caja' }}">
+        💰 Caja
+      </a>
+      <a href="{{ url_for('usuarios.listado') }}"
+         class="{{ 'active' if request.blueprint == 'usuarios' }}">
+        👤 Usuarios
+      </a>
+
+    {% elif current_user.es_profesor() %}
+      <a href="{{ url_for('auth.dashboard') }}"
+         class="{{ 'active' if request.endpoint == 'auth.dashboard_profesor' }}">
+        🏠 Inicio
+      </a>
+      <a href="{{ url_for('cursos.listado') }}"
+         class="{{ 'active' if request.blueprint == 'cursos' }}">
+        🏫 Mis cursos
+      </a>
+      <a href="{{ url_for('profesores.mis_alumnos') }}"
+         class="{{ 'active' if request.endpoint == 'profesores.mis_alumnos' }}">
+        👥 Mis alumnos
+      </a>
+      <a href="{{ url_for('asistencia.index') }}"
+         class="{{ 'active' if request.blueprint == 'asistencia' }}">
+        📋 Asistencia
+      </a>
+
+    {% elif current_user.es_alumno() %}
+      <a href="{{ url_for('auth.dashboard') }}"
+         class="{{ 'active' if request.endpoint == 'auth.dashboard_alumno' }}">
+        🏠 Inicio
+      </a>
+      <a href="#mis-clases">🏫 Mis clases</a>
+      <a href="#mis-pagos">📄 Mis pagos</a>
+      <a href="{{ url_for('alumnos.editar_perfil') }}"
+         class="{{ 'active' if request.endpoint == 'alumnos.editar_perfil' }}">
+        ✏️ Mi perfil
+      </a>
+
+    {% endif %}
+  </div>
+
+  <div class="navbar-user">
+    <span>{{ current_user.nombre }}</span>
+    <span class="badge badge-{{ current_user.rol }}">{{ current_user.rol }}</span>
+    <a href="{{ url_for('auth.logout') }}" class="btn-logout">Salir</a>
+  </div>
+</nav>
+{% endif %}
+
+<main class="main-content">
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+      <div class="flash-container">
+        {% for category, message in messages %}
+          <div class="flash flash-{{ category }}">{{ message }}</div>
+        {% endfor %}
+      </div>
+    {% endif %}
+  {% endwith %}
+
+  {% block content %}{% endblock %}
+</main>
+
+<script src="{{ url_for('static', filename='js/main.js') }}"></script>
+</body>
+</html>

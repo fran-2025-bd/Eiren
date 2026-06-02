@@ -1,0 +1,114 @@
+{% extends "base.html" %}
+{% block title %}Nueva liquidación · Eiren{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div><h2>Liquidación de profesor</h2></div>
+  <a href="{{ url_for('caja.index') }}" class="btn btn-ghost">← Volver</a>
+</div>
+
+<form method="POST" novalidate>
+  {{ form.hidden_tag() }}
+  <div class="form-section">
+    <h3 class="form-section-title">Seleccionar período</h3>
+    <div class="form-grid">
+      <div class="form-group">
+        {{ form.profesor_id.label }}
+        {{ form.profesor_id() }}
+      </div>
+      <div class="form-group">
+        {{ form.periodo_mes.label }}
+        {{ form.periodo_mes() }}
+      </div>
+      <div class="form-group">
+        {{ form.periodo_anio.label }}
+        {{ form.periodo_anio() }}
+      </div>
+    </div>
+  </div>
+  <div class="form-actions">
+    {{ form.submit(class="btn btn-secondary") }}
+  </div>
+</form>
+
+{% if preview %}
+<div class="form-section" style="margin-top:1.5rem;">
+  <h3 class="form-section-title">
+    Preview — {{ preview.profesor.usuario.nombre }} · {{ preview.mes }}/{{ preview.anio }}
+  </h3>
+
+  {% if preview.detalle %}
+  <div class="table-wrapper" style="border:none; background:transparent; margin-bottom:1rem;">
+    <table class="tabla">
+      <thead>
+        <tr>
+          <th>Curso</th>
+          <th>Alumno</th>
+          <th>Clases dadas</th>
+          <th>Presencias</th>
+          <th>Arancel</th>
+          <th>Monto (70%)</th>
+          <th>Estado pago</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for item in preview.detalle %}
+        <tr>
+          <td>{{ item.curso }}</td>
+          <td><strong>{{ item.alumno }}</strong></td>
+          <td>{{ item.clases_dadas }}</td>
+          <td>{{ item.presencias }}</td>
+          <td>${{ item.arancel|moneda }}</td>
+          <td style="font-weight:600;">${{ item.monto|moneda }}</td>
+          <td>
+            {% if item.pago %}
+              <span class="badge badge-activo">Pagó</span>
+            {% else %}
+              <span class="badge badge-inactivo">Pendiente</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <div class="ficha-grid" style="margin-bottom:1rem;">
+    <div class="ficha-card">
+      <h3 class="ficha-card-title">Confirmado</h3>
+      <div style="font-size:1.4rem; font-weight:600; color:var(--success-text);">
+        ${{ preview.total_confirmado|moneda }}
+      </div>
+      <p class="form-hint">Sobre alumnos que ya pagaron</p>
+    </div>
+    <div class="ficha-card">
+      <h3 class="ficha-card-title">Pendiente</h3>
+      <div style="font-size:1.4rem; font-weight:600; color:var(--warning-text);">
+        ${{ preview.total_pendiente|moneda }}
+      </div>
+      <p class="form-hint">Se acredita cuando el alumno pague</p>
+    </div>
+    <div class="ficha-card">
+      <h3 class="ficha-card-title">Total a liquidar</h3>
+      <div style="font-size:1.4rem; font-weight:600; color:var(--sepia-mid);">
+        ${{ (preview.total_confirmado + preview.total_pendiente)|moneda }}
+      </div>
+    </div>
+  </div>
+
+  <form method="POST" action="{{ url_for('caja.confirmar_liquidacion') }}">
+    <input type="hidden" name="csrf_token"   value="{{ csrf_token }}">
+    <input type="hidden" name="profesor_id"  value="{{ preview.profesor.id }}">
+    <input type="hidden" name="periodo_mes"  value="{{ preview.mes }}">
+    <input type="hidden" name="periodo_anio" value="{{ preview.anio }}">
+    <div class="form-actions">
+      <button type="submit" class="btn btn-primary">Confirmar y guardar liquidación</button>
+    </div>
+  </form>
+
+  {% else %}
+  <p class="text-muted">No hay clases asistidas para liquidar en este período.</p>
+  {% endif %}
+</div>
+{% endif %}
+{% endblock %}

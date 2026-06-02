@@ -1,0 +1,185 @@
+{% extends "base.html" %}
+{% block title %}Asistencia · Eiren{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h2>Asistencia</h2>
+    <p class="text-muted">Gestión de clases y registro de asistencia</p>
+  </div>
+</div>
+
+<div class="form-section" style="margin-bottom:1rem;">
+  <form method="GET" action="{{ url_for('asistencia.index') }}">
+    <div class="form-grid">
+
+      <div class="form-group">
+        <label>Curso</label>
+        <select name="curso_id">
+          <option value="">— Seleccionar curso —</option>
+          {% for c in cursos %}
+            {# Profesor solo ve sus propios cursos #}
+            {% if current_user.es_admin() or c.profesor.usuario_id == current_user.id %}
+            <option value="{{ c.id }}" {{ 'selected' if c.id == curso_id }}>
+              {{ c.nombre }}
+            </option>
+            {% endif %}
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label>Mes</label>
+        <select name="mes">
+          {% for n, nombre in [(1,'Enero'),(2,'Febrero'),(3,'Marzo'),(4,'Abril'),
+                               (5,'Mayo'),(6,'Junio'),(7,'Julio'),(8,'Agosto'),
+                               (9,'Septiembre'),(10,'Octubre'),(11,'Noviembre'),(12,'Diciembre')] %}
+            <option value="{{ n }}" {{ 'selected' if n == mes }}>{{ nombre }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label>Año</label>
+        <input type="number" name="anio" value="{{ anio }}" min="2024" max="2030">
+      </div>
+
+      <div class="form-group" style="justify-content:flex-end;">
+        <button type="submit" class="btn btn-secondary" style="margin-top:20px;">Ver clases</button>
+      </div>
+
+    </div>
+  </form>
+</div>
+
+{% if curso_id %}
+<div style="display:flex; gap:8px; margin-bottom:1rem; flex-wrap:wrap;">
+
+  {% if current_user.es_admin() %}
+  <form method="POST" action="{{ url_for('asistencia.generar') }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <input type="hidden" name="curso_id" value="{{ curso_id }}">
+    <input type="hidden" name="anio"     value="{{ anio }}">
+    <input type="hidden" name="mes"      value="{{ mes }}">
+    <button type="submit" class="btn btn-primary">⚡ Generar clases del mes</button>
+  </form>
+  {% endif %}
+
+  <a href="{{ url_for('asistencia.resumen_mes', curso_id=curso_id, anio=anio, mes=mes) }}"
+     class="btn btn-secondary">📊 Resumen del mes</a>
+
+  {% if current_user.es_admin() %}
+  <form method="POST" action="{{ url_for('asistencia.exportar_proximas') }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <button type="submit" class="btn btn-secondary">📤 Exportar a Sheets</button>
+  </form>
+
+  <form method="POST" action="{{ url_for('asistencia.sync_confirmaciones') }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <button type="submit" class="btn btn-secondary">🔄 Sync confirmaciones</button>
+  </form>
+  {% endif %}
+
+</div>
+{% endif %}
+
+{% if clases %}
+<div class="table-wrapper">
+  <table class="tabla">
+    <thead>
+      <tr>
+        <th>Fecha</th>
+        <th>Horario</th>
+        <th>Alumnos</th>
+        <th>Confirmados</th>
+        <th>Presentes</th>
+        <th>Estado</th>
+        <th>Acciones</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for c in clases %}
+      {% set confirmados = c.asistencias|selectattr('confirmacion', 'equalto', 'si')|list|length %}
+      {% set presentes   = c.asistencias|selectattr('asistencia',   'equalto', 'presente')|list|length %}
+      <tr class="{{ 'row-inactivo' if c.estado == 'cancelada' }}">
+        <td>
+          <div style="display:flex; align-items:center; gap:6px;">
+            <strong>{{ c.fecha.strftime('%d/%m/%Y') }}</strong>
+            {% if c.fecha == hoy %}
+              <span class="badge badge-activo">Hoy</span>
+            {% endif %}
+            {% if c.reprogramada %}
+              <span class="badge badge-individual"
+                    title="Fecha original: {{ c.fecha_original.strftime('%d/%m/%Y') if c.fecha_original else '—' }}">
+                Reprog.
+              </span>
+            {% endif %}
+          </div>
+          {% if c.reprogramada and c.fecha_original %}
+            <div style="font-size:11px; color:var(--text-hint); margin-top:2px;">
+              Orig: {{ c.fecha_original.strftime('%d/%m/%Y') }}
+            </div>
+          {% endif %}
+        </td>
+        <td>{{ c.hora_inicio }} – {{ c.hora_fin }}</td>
+        <td>{{ c.asistencias|length }}</td>
+        <td>{{ confirmados }}</td>
+        <td>{{ presentes if c.estado == 'realizada' else '—' }}</td>
+        <td>
+          <span class="badge
+            {% if c.estado == 'programada' %}badge-alumno
+            {% elif c.estado == 'realizada' %}badge-activo
+            {% else %}badge-inactivo{% endif %}">
+            {{ c.estado|capitalize }}
+          </span>
+        </td>
+        <td class="acciones">
+          {% if c.estado == 'programada' %}
+            <a href="{{ url_for('asistencia.tomar_lista', clase_id=c.id) }}"
+               class="btn-link">Tomar lista</a>
+            {% if current_user.es_admin() %}
+            <a href="{{ url_for('asistencia.reprogramar_clase', clase_id=c.id) }}"
+               class="btn-link">Reprogramar</a>
+            <form method="POST"
+                  action="{{ url_for('asistencia.cancelar_clase', clase_id=c.id) }}"
+                  style="display:inline"
+                  onsubmit="return confirm('¿Cancelar esta clase?')">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+              <button type="submit" class="btn-link text-danger">Cancelar</button>
+            </form>
+            {% endif %}
+          {% elif c.estado == 'realizada' %}
+            <a href="{{ url_for('asistencia.tomar_lista', clase_id=c.id) }}"
+               class="btn-link">Ver lista</a>
+          {% else %}
+            <span class="text-muted" style="font-size:12px;">Cancelada</span>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+{% elif curso_id %}
+<div class="empty-state">
+  <p>No hay clases generadas para este mes.</p>
+  {% if current_user.es_admin() %}
+  <form method="POST" action="{{ url_for('asistencia.generar') }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <input type="hidden" name="curso_id" value="{{ curso_id }}">
+    <input type="hidden" name="anio"     value="{{ anio }}">
+    <input type="hidden" name="mes"      value="{{ mes }}">
+    <button type="submit" class="btn btn-primary">⚡ Generar clases del mes</button>
+  </form>
+  {% else %}
+    <p class="text-muted" style="font-size:13px;">No hay clases generadas para este mes. Consultá al administrador.</p>
+  {% endif %}
+</div>
+
+{% else %}
+<div class="empty-state">
+  <p>Seleccioná un curso para ver sus clases.</p>
+</div>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,100 @@
+{% extends "base.html" %}
+{% block title %}Usuarios · Eiren{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h2>Gestión de usuarios</h2>
+    <p class="text-muted">{{ usuarios|length }} usuario{{ 's' if usuarios|length != 1 }}</p>
+  </div>
+</div>
+
+<div class="search-bar">
+  <form method="GET" action="{{ url_for('usuarios.listado') }}">
+    <input type="text" name="q" value="{{ busqueda }}"
+           placeholder="Buscar por nombre o usuario..." class="input-search">
+    <select name="rol" style="padding:8px 12px; background:var(--bg-surface);
+            border:1px solid var(--border); border-radius:var(--radius-md);
+            color:var(--text-primary); font-size:14px; outline:none;">
+      <option value="">— Todos los roles —</option>
+      <option value="admin"    {{ 'selected' if rol_filtro == 'admin' }}>Admin</option>
+      <option value="profesor" {{ 'selected' if rol_filtro == 'profesor' }}>Profesor</option>
+      <option value="alumno"   {{ 'selected' if rol_filtro == 'alumno' }}>Alumno</option>
+    </select>
+    <button type="submit" class="btn btn-secondary">Buscar</button>
+    {% if busqueda or rol_filtro %}
+      <a href="{{ url_for('usuarios.listado') }}" class="btn btn-ghost">Limpiar</a>
+    {% endif %}
+  </form>
+</div>
+
+{% if usuarios %}
+<div class="table-wrapper">
+  <table class="tabla">
+    <thead>
+      <tr>
+        <th>Nombre</th>
+        <th>Usuario</th>
+        <th>Contraseña</th>
+        <th>Rol</th>
+        <th>Estado</th>
+        <th>Acciones</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for u in usuarios %}
+      <tr class="{{ 'row-inactivo' if not u.activo }}">
+        <td><strong>{{ u.nombre }}</strong></td>
+        <td class="text-muted">{{ u.username }}</td>
+        <td>
+          <div class="password-cell">
+            <span class="password-mask" id="pwd-{{ u.id }}">••••••••</span>
+            <button type="button" class="btn-link"
+                    onclick="togglePwd({{ u.id }}, '{{ u.hash_pass }}')"
+                    style="font-size:11px; margin-left:6px;">
+              👁
+            </button>
+          </div>
+        </td>
+        <td>
+          <span class="badge badge-{{ u.rol }}">{{ u.rol }}</span>
+        </td>
+        <td>
+          <span class="badge {{ 'badge-activo' if u.activo else 'badge-inactivo' }}">
+            {{ 'Activo' if u.activo else 'Inactivo' }}
+          </span>
+        </td>
+        <td class="acciones">
+          <a href="{{ url_for('usuarios.editar', usuario_id=u.id) }}"
+             class="btn-link">Editar</a>
+          <a href="{{ url_for('usuarios.cambiar_password', usuario_id=u.id) }}"
+             class="btn-link">Cambiar clave</a>
+          {% if not u.id == current_user.id %}
+          <form method="POST"
+                action="{{ url_for('usuarios.toggle_activo', usuario_id=u.id) }}"
+                style="display:inline">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <button type="submit"
+                    class="btn-link {{ 'text-danger' if u.activo else 'text-success' }}">
+              {{ 'Desactivar' if u.activo else 'Activar' }}
+            </button>
+          </form>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<div class="flash flash-warning" style="margin-top:1rem; font-size:12px;">
+  ⚠ La contraseña mostrada es el hash encriptado, no la contraseña en texto plano.
+  Para cambiar la contraseña de un usuario usá el botón "Cambiar clave".
+</div>
+
+{% else %}
+<div class="empty-state">
+  <p>No se encontraron usuarios.</p>
+</div>
+{% endif %}
+{% endblock %}

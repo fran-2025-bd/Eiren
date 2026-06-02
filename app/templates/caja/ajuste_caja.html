@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block title %}Ajuste de caja · Eiren{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div><h2>Ajuste de caja</h2></div>
+  <a href="{{ url_for('caja.index') }}" class="btn btn-ghost">← Volver</a>
+</div>
+
+<div class="ficha-grid" style="margin-bottom:1.5rem;">
+  {% for c in cuentas %}
+  <div class="arqueo-card">
+    <div class="arqueo-nombre">{{ c.nombre|capitalize }}</div>
+    <div class="arqueo-saldo">${{ '%.2f'|format(c.saldo_actual) }}</div>
+    <div class="arqueo-hint">Saldo actual</div>
+  </div>
+  {% endfor %}
+</div>
+
+<form method="POST" novalidate>
+  {{ form.hidden_tag() }}
+  <div class="form-section">
+    <h3 class="form-section-title">Ajustar saldo</h3>
+    <div class="form-grid">
+
+      <div class="form-group">
+        {{ form.cuenta_id.label }}
+        {{ form.cuenta_id() }}
+      </div>
+
+      <div class="form-group">
+        {{ form.monto_nuevo.label }}
+        {{ form.monto_nuevo(placeholder="0.00") }}
+        <span class="form-hint">Ingresá el saldo real que debería tener la cuenta.</span>
+      </div>
+
+      <div class="form-group form-group--full">
+        {{ form.motivo.label }}
+        {{ form.motivo(placeholder="Ej: Conteo físico de caja, corrección de error...") }}
+      </div>
+
+      <div class="form-group">
+        {{ form.fecha.label }}
+        {{ form.fecha() }}
+      </div>
+
+    </div>
+  </div>
+  <div class="form-actions">
+    {{ form.submit(class="btn btn-primary") }}
+    <a href="{{ url_for('caja.index') }}" class="btn btn-ghost">Cancelar</a>
+  </div>
+</form>
+{% endblock %}

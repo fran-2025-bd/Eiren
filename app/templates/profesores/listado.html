@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+{% block title %}Profesores · Eiren{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h2>Profesores</h2>
+    <p class="text-muted">{{ profesores|length }} profesor{{ 'es' if profesores|length != 1 }}</p>
+  </div>
+  <a href="{{ url_for('profesores.nuevo') }}" class="btn btn-primary">+ Nuevo profesor</a>
+</div>
+
+<div class="search-bar">
+  <form method="GET" action="{{ url_for('profesores.listado') }}">
+    <input type="text" name="q" value="{{ busqueda }}"
+           placeholder="Buscar por nombre o DNI..." class="input-search">
+    <button type="submit" class="btn btn-secondary">Buscar</button>
+    {% if busqueda %}
+      <a href="{{ url_for('profesores.listado') }}" class="btn btn-ghost">Limpiar</a>
+    {% endif %}
+  </form>
+</div>
+
+{% if profesores %}
+<div class="table-wrapper">
+  <table class="tabla">
+    <thead>
+      <tr>
+        <th>Nombre</th>
+        <th>Usuario</th>
+        <th>DNI</th>
+        <th>Teléfono</th>
+        <th>Condición de pago</th>
+        <th>Estado</th>
+        <th>Acciones</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for p in profesores %}
+      <tr class="{{ 'row-inactivo' if not p.usuario.activo }}">
+        <td><strong>{{ p.usuario.nombre }}</strong></td>
+        <td class="text-muted">{{ p.usuario.username }}</td>
+        <td>{{ p.dni or '—' }}</td>
+        <td>{{ p.telefono or '—' }}</td>
+        <td>{{ p.condicion_pago_label() }}</td>
+        <td>
+          <span class="badge {{ 'badge-activo' if p.usuario.activo else 'badge-inactivo' }}">
+            {{ 'Activo' if p.usuario.activo else 'Inactivo' }}
+          </span>
+        </td>
+        <td class="acciones">
+          <a href="{{ url_for('profesores.ficha', profesor_id=p.id) }}" class="btn-link">Ver</a>
+          <a href="{{ url_for('profesores.editar', profesor_id=p.id) }}" class="btn-link">Editar</a>
+          <form method="POST"
+                action="{{ url_for('profesores.toggle_activo', profesor_id=p.id) }}"
+                style="display:inline">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <button type="submit"
+                    class="btn-link {{ 'text-danger' if p.usuario.activo else 'text-success' }}">
+              {{ 'Desactivar' if p.usuario.activo else 'Activar' }}
+            </button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+{% else %}
+<div class="empty-state">
+  <p>{{ 'No se encontraron profesores para "' + busqueda + '"' if busqueda else 'Todavía no hay profesores registrados.' }}</p>
+  {% if not busqueda %}
+    <a href="{{ url_for('profesores.nuevo') }}" class="btn btn-primary">Agregar el primero</a>
+  {% endif %}
+</div>
+{% endif %}
+{% endblock %}

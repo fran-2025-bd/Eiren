@@ -1,0 +1,181 @@
+{% extends "base.html" %}
+{% block title %}{{ titulo }} · Eiren{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h2>{{ titulo }}</h2>
+    {% if curso is defined %}
+      <p class="text-muted">Editando: {{ curso.nombre }}</p>
+    {% endif %}
+  </div>
+  <a href="{{ url_for('cursos.listado') }}" class="btn btn-ghost">← Volver</a>
+</div>
+
+<form method="POST" novalidate id="form-curso">
+  {{ form.hidden_tag() }}
+
+  <div class="form-section">
+    <h3 class="form-section-title">Datos del curso</h3>
+    <div class="form-grid">
+
+      <div class="form-group {% if form.nombre.errors %}has-error{% endif %}">
+        {{ form.nombre.label }}
+        {{ form.nombre(placeholder="Ej: Yoga nivel 1") }}
+        {% for e in form.nombre.errors %}<span class="form-error">{{ e }}</span>{% endfor %}
+      </div>
+
+      <div class="form-group {% if form.profesor_id.errors %}has-error{% endif %}">
+        {{ form.profesor_id.label }}
+        {{ form.profesor_id() }}
+        {% for e in form.profesor_id.errors %}<span class="form-error">{{ e }}</span>{% endfor %}
+      </div>
+
+      <div class="form-group">
+        {{ form.modalidad.label }}
+        {{ form.modalidad() }}
+      </div>
+
+      <div class="form-group {% if form.arancel_base.errors %}has-error{% endif %}">
+        {{ form.arancel_base.label }}
+        {{ form.arancel_base(placeholder="0") }}
+        <span class="form-hint">Valor de referencia. Se puede ajustar por alumno al inscribir.</span>
+        {% for e in form.arancel_base.errors %}<span class="form-error">{{ e }}</span>{% endfor %}
+      </div>
+
+      <div class="form-group">
+        {{ form.sala.label }}
+        {{ form.sala() }}
+        <span class="form-hint">Asigná la sala donde se dictará el curso.</span>
+      </div>
+
+      <div class="form-group form-group--full">
+        {{ form.descripcion.label }}
+        {{ form.descripcion(placeholder="Descripción opcional del curso...", rows=2) }}
+      </div>
+
+    </div>
+  </div>
+
+  <div class="form-section">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
+      <h3 class="form-section-title" style="margin-bottom:0;">Horarios</h3>
+      <button type="button" class="btn btn-secondary" id="btn-add-horario">+ Agregar horario</button>
+    </div>
+
+    <div id="horarios-container">
+      {% if horarios %}
+        {% for h in horarios %}
+        <div class="horario-row">
+          <div class="form-grid horario-grid">
+            <div class="form-group">
+              <label>Día</label>
+              <select name="dia_semana">
+                <option value="lunes"     {{ 'selected' if h.dia_semana == 'lunes' }}>Lunes</option>
+                <option value="martes"    {{ 'selected' if h.dia_semana == 'martes' }}>Martes</option>
+                <option value="miercoles" {{ 'selected' if h.dia_semana == 'miercoles' }}>Miércoles</option>
+                <option value="jueves"    {{ 'selected' if h.dia_semana == 'jueves' }}>Jueves</option>
+                <option value="viernes"   {{ 'selected' if h.dia_semana == 'viernes' }}>Viernes</option>
+                <option value="sabado"    {{ 'selected' if h.dia_semana == 'sabado' }}>Sábado</option>
+                <option value="domingo"   {{ 'selected' if h.dia_semana == 'domingo' }}>Domingo</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Desde</label>
+              <input type="time" name="hora_inicio" value="{{ h.hora_inicio }}">
+            </div>
+            <div class="form-group">
+              <label>Hasta</label>
+              <input type="time" name="hora_fin" value="{{ h.hora_fin }}">
+            </div>
+            <div class="form-group" style="justify-content:flex-end;">
+              <button type="button" class="btn btn-danger btn-remove-horario" style="margin-top:20px;">Quitar</button>
+            </div>
+          </div>
+        </div>
+        {% endfor %}
+      {% else %}
+        <div class="horario-row">
+          <div class="form-grid horario-grid">
+            <div class="form-group">
+              <label>Día</label>
+              <select name="dia_semana">
+                <option value="lunes">Lunes</option>
+                <option value="martes">Martes</option>
+                <option value="miercoles">Miércoles</option>
+                <option value="jueves">Jueves</option>
+                <option value="viernes">Viernes</option>
+                <option value="sabado">Sábado</option>
+                <option value="domingo">Domingo</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Desde</label>
+              <input type="time" name="hora_inicio">
+            </div>
+            <div class="form-group">
+              <label>Hasta</label>
+              <input type="time" name="hora_fin">
+            </div>
+            <div class="form-group" style="justify-content:flex-end;">
+              <button type="button" class="btn btn-danger btn-remove-horario" style="margin-top:20px;">Quitar</button>
+            </div>
+          </div>
+        </div>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="form-actions">
+    {{ form.submit(class="btn btn-primary") }}
+    <a href="{{ url_for('cursos.listado') }}" class="btn btn-ghost">Cancelar</a>
+  </div>
+</form>
+
+<template id="horario-template">
+  <div class="horario-row">
+    <div class="form-grid horario-grid">
+      <div class="form-group">
+        <label>Día</label>
+        <select name="dia_semana">
+          <option value="lunes">Lunes</option>
+          <option value="martes">Martes</option>
+          <option value="miercoles">Miércoles</option>
+          <option value="jueves">Jueves</option>
+          <option value="viernes">Viernes</option>
+          <option value="sabado">Sábado</option>
+          <option value="domingo">Domingo</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Desde</label>
+        <input type="time" name="hora_inicio">
+      </div>
+      <div class="form-group">
+        <label>Hasta</label>
+        <input type="time" name="hora_fin">
+      </div>
+      <div class="form-group" style="justify-content:flex-end;">
+        <button type="button" class="btn btn-danger btn-remove-horario" style="margin-top:20px;">Quitar</button>
+      </div>
+    </div>
+  </div>
+</template>
+
+<script>
+document.getElementById('btn-add-horario').addEventListener('click', () => {
+  const tpl = document.getElementById('horario-template').content.cloneNode(true);
+  document.getElementById('horarios-container').appendChild(tpl);
+  bindRemove();
+});
+function bindRemove() {
+  document.querySelectorAll('.btn-remove-horario').forEach(btn => {
+    btn.onclick = () => {
+      const rows = document.querySelectorAll('.horario-row');
+      if (rows.length > 1) btn.closest('.horario-row').remove();
+    };
+  });
+}
+bindRemove();
+</script>
+{% endblock %}

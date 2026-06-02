@@ -1,0 +1,103 @@
+{% extends "base.html" %}
+{% block title %}Reprogramar clase · Eiren{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h2>Reprogramar clase</h2>
+    <p class="text-muted">
+      {{ clase.curso.nombre }} ·
+      {{ clase.fecha.strftime('%d/%m/%Y') }}
+      {{ clase.hora_inicio }} – {{ clase.hora_fin }}
+    </p>
+  </div>
+  <a href="{{ url_for('asistencia.index', curso_id=clase.curso_id,
+             anio=clase.fecha.year, mes=clase.fecha.month) }}"
+     class="btn btn-ghost">← Volver</a>
+</div>
+
+{% if clase.reprogramada %}
+<div class="flash flash-warning" style="margin-bottom:1rem;">
+  Esta clase ya fue reprogramada anteriormente.
+  Fecha original: <strong>{{ clase.fecha_original.strftime('%d/%m/%Y') }}</strong>.
+  Si la reprogramás de nuevo se mantendrá la fecha original y se actualizará la nueva fecha.
+</div>
+{% endif %}
+
+<form method="POST">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+
+  <div class="form-section">
+    <h3 class="form-section-title">Nueva fecha de la clase</h3>
+    <div class="form-grid">
+
+      <div class="form-group">
+        <label>Fecha original</label>
+        <input type="text"
+               value="{{ clase.fecha_original.strftime('%d/%m/%Y') if clase.fecha_original else clase.fecha.strftime('%d/%m/%Y') }}"
+               disabled>
+      </div>
+
+      <div class="form-group">
+        <label>Nueva fecha</label>
+        <input type="date" name="fecha_nueva" required
+               min="{{ clase.fecha.isoformat() }}">
+        <span class="form-hint">Ingresá la fecha a la que se mueve la clase.</span>
+      </div>
+
+      <div class="form-group form-group--full">
+        <label>Motivo (opcional)</label>
+        <input type="text" name="motivo"
+               placeholder="Ej: Feriado nacional, ausencia del profesor..."
+               value="{{ clase.motivo_reprog or '' }}">
+      </div>
+
+    </div>
+  </div>
+
+  <div class="form-section">
+    <h3 class="form-section-title">Alumnos afectados</h3>
+    <p class="text-muted" style="font-size:13px; margin-bottom:.75rem;">
+      Al reprogramar, todos los alumnos recibirán una nueva confirmación por WhatsApp
+      para la fecha indicada.
+    </p>
+    <div class="table-wrapper" style="border:none; background:transparent;">
+      <table class="tabla">
+        <thead>
+          <tr>
+            <th>Alumno</th>
+            <th>Confirmación actual</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for a in clase.asistencias %}
+          <tr>
+            <td><strong>{{ a.inscripcion.alumno.usuario.nombre }}</strong></td>
+            <td>
+              {% if a.confirmacion == 'si' %}
+                <span class="badge badge-activo">✓ Había confirmado</span>
+              {% elif a.confirmacion == 'no' %}
+                <span class="badge badge-inactivo">✗ Había dicho que no va</span>
+              {% else %}
+                <span class="badge badge-alumno">Pendiente</span>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="form-actions">
+    <button type="submit" class="btn btn-primary"
+            onclick="return confirm('¿Confirmar reprogramación? Se resetearán todas las confirmaciones.')">
+      Confirmar reprogramación
+    </button>
+    <a href="{{ url_for('asistencia.index', curso_id=clase.curso_id,
+               anio=clase.fecha.year, mes=clase.fecha.month) }}"
+       class="btn btn-ghost">Cancelar</a>
+  </div>
+
+</form>
+{% endblock %}
