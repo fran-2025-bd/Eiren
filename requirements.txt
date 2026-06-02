@@ -11,6 +11,9 @@ psycopg2-binary==2.9.9
 # Variables de entorno
 python-dotenv==1.0.1
 
+# Servidor producción
+gunicorn==21.2.0
+
 # Google Sheets / N8N integration
 gspread==6.1.2
 google-auth==2.29.0
