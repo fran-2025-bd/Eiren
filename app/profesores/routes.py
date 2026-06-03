@@ -6,7 +6,7 @@ from app.models import Usuario, Profesor, ROL_PROFESOR
 from app.profesores.forms import ProfesorForm
 from app.auth.routes import rol_requerido
 from . import profesores_bp
-
+from app.models import DisponibilidadProfesor
 
 # ------------------------------------------------------------------
 # Listado
@@ -188,3 +188,29 @@ def mis_alumnos():
 
     return render_template('profesores/mis_alumnos.html',
                            alumnos=alumnos, profesor=profesor)
+
+@profesores_bp.route('/<int:profesor_id>/disponibilidad', methods=['POST'])
+@login_required
+@rol_requerido('admin')
+def guardar_disponibilidad(profesor_id):
+    profesor = Profesor.query.get_or_404(profesor_id)
+
+    # Eliminar disponibilidades anteriores
+    DisponibilidadProfesor.query.filter_by(profesor_id=profesor_id).delete()
+
+    dias    = request.form.getlist('disp_dia')
+    inicios = request.form.getlist('disp_inicio')
+    fines   = request.form.getlist('disp_fin')
+
+    for dia, inicio, fin in zip(dias, inicios, fines):
+        if dia and inicio and fin:
+            db.session.add(DisponibilidadProfesor(
+                profesor_id = profesor_id,
+                dia_semana  = dia,
+                hora_inicio = inicio,
+                hora_fin    = fin,
+            ))
+
+    db.session.commit()
+    flash('Disponibilidad actualizada correctamente.', 'success')
+    return redirect(url_for('profesores.ficha', profesor_id=profesor_id))

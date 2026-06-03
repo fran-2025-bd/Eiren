@@ -6,6 +6,7 @@ from flask_login import login_required, current_user
 from app.extensions import db
 from app.models import (Curso, HorarioCurso, Inscripcion, ClaseReprogramada,
                         Profesor, Alumno, Clase, Asistencia,
+                        DisponibilidadProfesor,
                         CLASE_PROGRAMADA, CONF_PENDIENTE, ASIST_PENDIENTE)
 from app.cursos.forms import CursoForm, InscripcionForm, ReprogramacionForm
 from app.auth.routes import rol_requerido
@@ -59,6 +60,60 @@ def _validar_sala(sala, horarios_nuevos, curso_id=None):
     return conflictos
 
 
+def _validar_disponibilidad_profesor(profesor_id, horarios_nuevos, curso_id=None):
+    """
+    Verifica que el profesor:
+    1. Tenga disponibilidad declarada en ese día y horario
+    2. No tenga otro curso en ese mismo horario
+    Retorna lista de errores o [] si todo está OK.
+    """
+    errores = []
+
+    for h in horarios_nuevos:
+        dia    = h['dia_semana']
+        inicio = h['hora_inicio']
+        fin    = h['hora_fin']
+
+        # 1. Verificar disponibilidad declarada
+        disponibilidades = DisponibilidadProfesor.query.filter_by(
+            profesor_id=profesor_id,
+            dia_semana=dia
+        ).all()
+
+        tiene_disp = any(
+            d.hora_inicio <= inicio and d.hora_fin >= fin
+            for d in disponibilidades
+        )
+
+        if not tiene_disp:
+            prof = Profesor.query.get(profesor_id)
+            nombre = prof.usuario.nombre if prof else f'Profesor {profesor_id}'
+            errores.append(
+                f"{nombre} no tiene disponibilidad declarada el "
+                f"{dia.capitalize()} {inicio}–{fin}"
+            )
+            continue
+
+        # 2. Verificar que no tenga otro curso en ese horario
+        query = (HorarioCurso.query
+                 .join(Curso)
+                 .filter(Curso.profesor_id == profesor_id)
+                 .filter(Curso.activo == True)
+                 .filter(HorarioCurso.dia_semana == dia))
+
+        if curso_id:
+            query = query.filter(Curso.id != curso_id)
+
+        for h_exist in query.all():
+            if inicio < h_exist.hora_fin and fin > h_exist.hora_inicio:
+                errores.append(
+                    f"Profesor ya tiene '{h_exist.curso.nombre}' el "
+                    f"{dia.capitalize()} {h_exist.hora_inicio}–{h_exist.hora_fin}"
+                )
+
+    return errores
+
+
 # ------------------------------------------------------------------
 # Listado
 # ------------------------------------------------------------------
@@ -107,6 +162,13 @@ def nuevo():
                 flash(f'Conflicto de sala: {", ".join(conflictos)}', 'danger')
                 return render_template('cursos/form.html', form=form,
                                        titulo='Nuevo curso', horarios=[])
+
+        errores_prof = _validar_disponibilidad_profesor(
+            form.profesor_id.data, horarios_data)
+        if errores_prof:
+            flash(f'Conflicto de profesor: {", ".join(errores_prof)}', 'danger')
+            return render_template('cursos/form.html', form=form,
+                                   titulo='Nuevo curso', horarios=[])
 
         curso = Curso(
             nombre       = form.nombre.data.strip(),
@@ -182,6 +244,14 @@ def editar(curso_id):
                 return render_template('cursos/form.html', form=form,
                                        titulo='Editar curso',
                                        horarios=curso.horarios, curso=curso)
+
+        errores_prof = _validar_disponibilidad_profesor(
+            form.profesor_id.data, horarios_data, curso_id=curso.id)
+        if errores_prof:
+            flash(f'Conflicto de profesor: {", ".join(errores_prof)}', 'danger')
+            return render_template('cursos/form.html', form=form,
+                                   titulo='Editar curso',
+                                   horarios=curso.horarios, curso=curso)
 
         curso.nombre       = form.nombre.data.strip()
         curso.profesor_id  = form.profesor_id.data

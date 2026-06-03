@@ -31,10 +31,10 @@
   <div class="ficha-card">
     <h3 class="ficha-card-title">Datos personales</h3>
     <dl class="ficha-dl">
-      <dt>DNI</dt>       <dd>{{ profesor.dni or '—' }}</dd>
-      <dt>Teléfono</dt>  <dd>{{ profesor.telefono or '—' }}</dd>
-      <dt>Email</dt>     <dd>{{ profesor.email_contacto or '—' }}</dd>
-      <dt>Dirección</dt> <dd>{{ profesor.direccion or '—' }}</dd>
+      <dt>DNI</dt>        <dd>{{ profesor.dni or '—' }}</dd>
+      <dt>Teléfono</dt>   <dd>{{ profesor.telefono or '—' }}</dd>
+      <dt>Email</dt>      <dd>{{ profesor.email_contacto or '—' }}</dd>
+      <dt>Dirección</dt>  <dd>{{ profesor.direccion or '—' }}</dd>
       <dt>Nacimiento</dt> <dd>{{ profesor.fecha_nacimiento.strftime('%d/%m/%Y') if profesor.fecha_nacimiento else '—' }}</dd>
     </dl>
   </div>
@@ -106,6 +106,111 @@
     {% endif %}
   </div>
 
+  {# Disponibilidad horaria #}
+  <div class="ficha-card ficha-card--full">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:.75rem;">
+      <h3 class="ficha-card-title" style="margin-bottom:0;">Disponibilidad horaria</h3>
+      <button type="button" class="btn btn-secondary" style="font-size:12px; padding:6px 12px;"
+              onclick="toggleDisponibilidad()">Editar disponibilidad</button>
+    </div>
+
+    <div id="disp-lectura">
+      {% if profesor.disponibilidades %}
+      <div class="table-wrapper" style="border:none; background:transparent;">
+        <table class="tabla">
+          <thead>
+            <tr><th>Día</th><th>Desde</th><th>Hasta</th></tr>
+          </thead>
+          <tbody>
+            {% for d in profesor.disponibilidades | sort(attribute='dia_semana') %}
+            <tr>
+              <td>{{ d.dia_semana | capitalize }}</td>
+              <td>{{ d.hora_inicio }}</td>
+              <td>{{ d.hora_fin }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+        <p class="text-muted" style="font-size:13px;">No hay disponibilidad cargada todavía.</p>
+      {% endif %}
+    </div>
+
+    <div id="disp-form" style="display:none; margin-top:1rem;">
+      <form method="POST"
+            action="{{ url_for('profesores.guardar_disponibilidad', profesor_id=profesor.id) }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+
+        <div id="disp-container">
+          {% if profesor.disponibilidades %}
+            {% for d in profesor.disponibilidades %}
+            <div class="disp-row" {% if not loop.first %}style="margin-top:8px;"{% endif %}>
+              <div class="form-grid" style="grid-template-columns: 1fr 1fr 1fr auto; gap:8px; align-items:end;">
+                <div class="form-group" style="margin:0;">
+                  <label style="font-size:12px;">Día</label>
+                  <select name="disp_dia">
+                    {% for dia in ['lunes','martes','miercoles','jueves','viernes','sabado','domingo'] %}
+                    <option value="{{ dia }}" {{ 'selected' if d.dia_semana == dia }}>{{ dia|capitalize }}</option>
+                    {% endfor %}
+                  </select>
+                </div>
+                <div class="form-group" style="margin:0;">
+                  <label style="font-size:12px;">Desde</label>
+                  <input type="time" name="disp_inicio" value="{{ d.hora_inicio }}">
+                </div>
+                <div class="form-group" style="margin:0;">
+                  <label style="font-size:12px;">Hasta</label>
+                  <input type="time" name="disp_fin" value="{{ d.hora_fin }}">
+                </div>
+                <button type="button" class="btn btn-ghost"
+                        style="font-size:12px; padding:6px 10px; color:var(--danger-text);"
+                        onclick="this.closest('.disp-row').remove()">✕</button>
+              </div>
+            </div>
+            {% endfor %}
+          {% else %}
+          <div class="disp-row">
+            <div class="form-grid" style="grid-template-columns: 1fr 1fr 1fr auto; gap:8px; align-items:end;">
+              <div class="form-group" style="margin:0;">
+                <label style="font-size:12px;">Día</label>
+                <select name="disp_dia">
+                  <option value="lunes">Lunes</option>
+                  <option value="martes">Martes</option>
+                  <option value="miercoles">Miércoles</option>
+                  <option value="jueves">Jueves</option>
+                  <option value="viernes">Viernes</option>
+                  <option value="sabado">Sábado</option>
+                  <option value="domingo">Domingo</option>
+                </select>
+              </div>
+              <div class="form-group" style="margin:0;">
+                <label style="font-size:12px;">Desde</label>
+                <input type="time" name="disp_inicio">
+              </div>
+              <div class="form-group" style="margin:0;">
+                <label style="font-size:12px;">Hasta</label>
+                <input type="time" name="disp_fin">
+              </div>
+              <button type="button" class="btn btn-ghost"
+                      style="font-size:12px; padding:6px 10px; color:var(--danger-text);"
+                      onclick="this.closest('.disp-row').remove()">✕</button>
+            </div>
+          </div>
+          {% endif %}
+        </div>
+
+        <div style="display:flex; gap:8px; margin-top:10px;">
+          <button type="button" class="btn btn-secondary" style="font-size:12px;"
+                  onclick="agregarFranja()">+ Agregar franja</button>
+          <button type="submit" class="btn btn-primary" style="font-size:12px;">Guardar</button>
+          <button type="button" class="btn btn-ghost" style="font-size:12px;"
+                  onclick="toggleDisponibilidad()">Cancelar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
   {# Historial de liquidaciones #}
   <div class="ficha-card ficha-card--full">
     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:.75rem;">
@@ -154,9 +259,7 @@
               <a href="{{ url_for('caja.ver_liquidacion', liq_id=liq.id) }}"
                  class="btn-link">Ver detalle</a>
               <a href="{{ url_for('caja.comprobante_liquidacion', liq_id=liq.id) }}"
-                 class="btn-link" target="_blank">
-                🖨 Comprobante
-              </a>
+                 class="btn-link" target="_blank">🖨 Comprobante</a>
             </td>
           </tr>
           {% endfor %}
@@ -169,4 +272,48 @@
   </div>
 
 </div>
+
+<template id="disp-template">
+  <div class="disp-row" style="margin-top:8px;">
+    <div class="form-grid" style="grid-template-columns: 1fr 1fr 1fr auto; gap:8px; align-items:end;">
+      <div class="form-group" style="margin:0;">
+        <label style="font-size:12px;">Día</label>
+        <select name="disp_dia">
+          <option value="lunes">Lunes</option>
+          <option value="martes">Martes</option>
+          <option value="miercoles">Miércoles</option>
+          <option value="jueves">Jueves</option>
+          <option value="viernes">Viernes</option>
+          <option value="sabado">Sábado</option>
+          <option value="domingo">Domingo</option>
+        </select>
+      </div>
+      <div class="form-group" style="margin:0;">
+        <label style="font-size:12px;">Desde</label>
+        <input type="time" name="disp_inicio">
+      </div>
+      <div class="form-group" style="margin:0;">
+        <label style="font-size:12px;">Hasta</label>
+        <input type="time" name="disp_fin">
+      </div>
+      <button type="button" class="btn btn-ghost"
+              style="font-size:12px; padding:6px 10px; color:var(--danger-text);"
+              onclick="this.closest('.disp-row').remove()">✕</button>
+    </div>
+  </div>
+</template>
+
+<script>
+function toggleDisponibilidad() {
+  const form     = document.getElementById('disp-form');
+  const lectura  = document.getElementById('disp-lectura');
+  const oculto   = form.style.display === 'none';
+  form.style.display    = oculto ? 'block' : 'none';
+  lectura.style.display = oculto ? 'none'  : 'block';
+}
+function agregarFranja() {
+  const tpl = document.getElementById('disp-template').content.cloneNode(true);
+  document.getElementById('disp-container').appendChild(tpl);
+}
+</script>
 {% endblock %}

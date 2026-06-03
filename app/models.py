@@ -199,6 +199,19 @@ class HorarioCurso(db.Model):
     def __repr__(self):
         return f'<Horario {self.dia_semana} {self.hora_inicio}-{self.hora_fin}>'
 
+class DisponibilidadProfesor(db.Model):
+    __tablename__ = 'disponibilidad_profesor'
+
+    id          = db.Column(db.Integer, primary_key=True)
+    profesor_id = db.Column(db.Integer, db.ForeignKey('profesores.id'), nullable=False)
+    dia_semana  = db.Column(db.String(20), nullable=False)
+    hora_inicio = db.Column(db.String(5), nullable=False)
+    hora_fin    = db.Column(db.String(5), nullable=False)
+
+    profesor = db.relationship('Profesor', backref='disponibilidades')
+
+    def __repr__(self):
+        return f'<Disponibilidad {self.profesor_id} {self.dia_semana} {self.hora_inicio}-{self.hora_fin}>'
 
 # ------------------------------------------------------------
 # Inscripcion

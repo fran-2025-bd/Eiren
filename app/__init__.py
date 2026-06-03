@@ -37,6 +37,9 @@ def create_app(env=None):
     from app.cumpleanios import cumpleanios_bp  
     app.register_blueprint(cumpleanios_bp)
 
+    from app.agenda import agenda_bp
+    app.register_blueprint(agenda_bp)
+
     # Filtro de moneda argentina — sin centavos, separador de miles con punto
     def formato_moneda(valor):
         if valor is None:

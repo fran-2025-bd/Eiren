@@ -67,6 +67,12 @@
          class="{{ 'active' if request.endpoint == 'auth.dashboard_alumno' }}">
         🏠 Inicio
       </a>
+
+      <a href="{{ url_for('agenda.index') }}"
+      class="{{ 'active' if request.blueprint == 'agenda' }}">
+     📅 Agenda
+   </a>
+   
       <a href="#mis-clases">🏫 Mis clases</a>
       <a href="#mis-pagos">📄 Mis pagos</a>
       <a href="{{ url_for('alumnos.editar_perfil') }}"

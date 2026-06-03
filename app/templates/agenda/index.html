@@ -1,0 +1,235 @@
+{% extends "base.html" %}
+{% block title %}Agenda · Eiren{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h2>Agenda semanal</h2>
+    <p class="text-muted">Disponibilidad de salas y profesores</p>
+  </div>
+</div>
+
+<div class="agenda-nav">
+  <a href="{{ url_for('agenda.index', semana=semana_anterior) }}" class="btn btn-ghost">← Semana anterior</a>
+  <span class="agenda-semana-titulo">
+    {{ dias[0].strftime('%d/%m') }} – {{ dias[6].strftime('%d/%m/%Y') }}
+  </span>
+  <a href="{{ url_for('agenda.index', semana=semana_siguiente) }}" class="btn btn-ghost">Semana siguiente →</a>
+</div>
+
+<div class="agenda-day-tabs">
+  {% for dia in dias %}
+  <button class="agenda-day-tab {{ 'active' if dia == dia_activo }} {{ 'hoy' if dia == hoy }}"
+          data-fecha="{{ dia.isoformat() }}">
+    <span class="tab-dia">{{ ['Lun','Mar','Mié','Jue','Vie','Sáb','Dom'][loop.index0] }}</span>
+    <span class="tab-num">{{ dia.strftime('%d') }}</span>
+    {% if dia == hoy %}<span class="tab-hoy-badge">hoy</span>{% endif %}
+  </button>
+  {% endfor %}
+</div>
+
+<div class="agenda-grid-wrapper">
+  <table class="agenda-tabla" id="agenda-tabla">
+    <thead>
+      <tr>
+        <th class="agenda-th-hora"></th>
+        {% for sala in salas %}
+        <th class="agenda-th-sala sala-{{ loop.index }}">{{ sala }}</th>
+        {% endfor %}
+      </tr>
+    </thead>
+    <tbody id="agenda-tbody">
+      {% for hora in horas %}
+      <tr>
+        <td class="agenda-hora">{{ hora }}</td>
+        {% for sala in salas %}
+        {% set slot = datos_dia.get(hora, {}).get(sala, {'tipo': 'sin_disp'}) %}
+        <td class="agenda-slot slot-{{ slot.tipo }}"
+            data-hora="{{ hora }}"
+            data-sala="{{ sala }}"
+            data-tipo="{{ slot.tipo }}"
+            {% if slot.tipo == 'libre' %}
+              data-profes="{{ slot.profes | join('|') }}"
+            {% elif slot.tipo in ['fijo','reprog'] %}
+              data-curso="{{ slot.curso }}"
+              data-prof="{{ slot.prof }}"
+              data-alumnos="{{ slot.alumnos }}"
+              data-individual="{{ slot.individual }}"
+              data-nota="{{ slot.nota }}"
+              data-clase-id="{{ slot.clase_id or '' }}"
+            {% endif %}>
+          {% if slot.tipo == 'fijo' %}
+            <div class="slot-nombre">{{ slot.curso }}</div>
+            <div class="slot-prof">{{ slot.prof }}</div>
+            {% if not slot.individual %}
+              <div class="slot-alumnos">
+                <span class="slot-icon">👥</span> {{ slot.alumnos }} alumnos
+              </div>
+            {% else %}
+              <div class="slot-alumnos">individual</div>
+            {% endif %}
+          {% elif slot.tipo == 'reprog' %}
+            <div class="slot-badge-reprog">reprogramada</div>
+            <div class="slot-nombre-reprog">{{ slot.curso }}</div>
+            <div class="slot-prof-reprog">{{ slot.prof }}</div>
+          {% elif slot.tipo == 'libre' %}
+            <div class="slot-libre-txt">sala libre</div>
+            <div class="slot-profes-count">+{{ slot.profes | length }} disponibles</div>
+          {% endif %}
+        </td>
+        {% endfor %}
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<div class="agenda-leyenda">
+  <div class="ley-item"><div class="ley-box ley-fijo"></div>clase fija</div>
+  <div class="ley-item"><div class="ley-box ley-reprog"></div>reprogramada</div>
+  <div class="ley-item"><div class="ley-box ley-libre"></div>sala libre / profes disponibles</div>
+  <div class="ley-item"><div class="ley-box ley-sin"></div>sin disponibilidad</div>
+</div>
+
+{# Popup #}
+<div class="cal-popup-overlay" id="popup-overlay" style="display:none;">
+  <div class="cal-popup" style="max-width:320px;">
+    <div class="cal-popup-header">
+      <span id="popup-titulo"></span>
+      <button class="cal-popup-close" id="popup-close">&#x2715;</button>
+    </div>
+    <div class="cal-popup-body" id="popup-cuerpo"></div>
+  </div>
+</div>
+
+<script>
+const salas = {{ salas | tojson }};
+const horas = {{ horas | tojson }};
+
+// Tabs de días
+document.querySelectorAll('.agenda-day-tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.agenda-day-tab').forEach(t => t.classList.remove('active'));
+    tab.classList.add('active');
+    cargarDia(tab.dataset.fecha);
+  });
+});
+
+async function cargarDia(fecha) {
+  const resp = await fetch(`/agenda/dia/${fecha}`);
+  const datos = await resp.json();
+  renderTabla(datos);
+}
+
+function renderTabla(datos) {
+  const tbody = document.getElementById('agenda-tbody');
+  tbody.innerHTML = '';
+  horas.forEach(hora => {
+    const tr = document.createElement('tr');
+    const tdHora = document.createElement('td');
+    tdHora.className = 'agenda-hora';
+    tdHora.textContent = hora;
+    tr.appendChild(tdHora);
+
+    salas.forEach(sala => {
+      const slot = (datos[hora] || {})[sala] || { tipo: 'sin_disp' };
+      const td = document.createElement('td');
+      td.className = `agenda-slot slot-${slot.tipo}`;
+      td.dataset.hora = hora;
+      td.dataset.sala = sala;
+      td.dataset.tipo = slot.tipo;
+
+      if (slot.tipo === 'fijo') {
+        td.dataset.curso     = slot.curso;
+        td.dataset.prof      = slot.prof;
+        td.dataset.alumnos   = slot.alumnos;
+        td.dataset.individual = slot.individual;
+        td.innerHTML = `
+          <div class="slot-nombre">${slot.curso}</div>
+          <div class="slot-prof">${slot.prof}</div>
+          <div class="slot-alumnos">${slot.individual ? 'individual' : '👥 ' + slot.alumnos + ' alumnos'}</div>`;
+      } else if (slot.tipo === 'reprog') {
+        td.dataset.curso = slot.curso;
+        td.dataset.prof  = slot.prof;
+        td.dataset.nota  = slot.nota;
+        td.innerHTML = `
+          <div class="slot-badge-reprog">reprogramada</div>
+          <div class="slot-nombre-reprog">${slot.curso}</div>
+          <div class="slot-prof-reprog">${slot.prof}</div>`;
+      } else if (slot.tipo === 'libre') {
+        td.dataset.profes = slot.profes.join('|');
+        td.innerHTML = `
+          <div class="slot-libre-txt">sala libre</div>
+          <div class="slot-profes-count">+${slot.profes.length} disponibles</div>`;
+      }
+
+      td.addEventListener('click', () => abrirPopup(td));
+      tr.appendChild(td);
+    });
+    tbody.appendChild(tr);
+  });
+
+  // Rebindear clicks en filas existentes
+  bindSlotClicks();
+}
+
+function bindSlotClicks() {
+  document.querySelectorAll('.agenda-slot').forEach(td => {
+    td.addEventListener('click', () => abrirPopup(td));
+  });
+}
+
+function abrirPopup(td) {
+  const tipo  = td.dataset.tipo;
+  const sala  = td.dataset.sala;
+  const hora  = td.dataset.hora;
+
+  if (tipo === 'sin_disp') return;
+
+  document.getElementById('popup-titulo').textContent = `${sala} · ${hora}`;
+  const cuerpo = document.getElementById('popup-cuerpo');
+
+  if (tipo === 'fijo') {
+    const individual = td.dataset.individual === 'True' || td.dataset.individual === 'true';
+    cuerpo.innerHTML = `
+      <div class="popup-clase">
+        <div class="popup-clase-nombre">${td.dataset.curso}</div>
+        <div class="popup-clase-info">
+          <span>👨‍🏫 ${td.dataset.prof}</span>
+          ${!individual ? `<span>👥 ${td.dataset.alumnos} alumnos</span>` : '<span>individual</span>'}
+        </div>
+        <div class="popup-clase-prof" style="margin-top:6px; font-size:11px; color:var(--text-hint);">Clase fija recurrente</div>
+      </div>`;
+  } else if (tipo === 'reprog') {
+    cuerpo.innerHTML = `
+      <div class="popup-clase" style="border-left-color:#EF9F27;">
+        <div class="popup-clase-nombre">${td.dataset.curso}</div>
+        <div class="popup-clase-info"><span>👨‍🏫 ${td.dataset.prof}</span></div>
+        ${td.dataset.nota ? `<div class="popup-clase-prof" style="color:#854F0B;margin-top:4px;">${td.dataset.nota}</div>` : ''}
+        <div class="popup-clase-prof" style="margin-top:4px;font-size:11px;color:var(--text-hint);">Clase puntual, no recurrente</div>
+      </div>`;
+  } else if (tipo === 'libre') {
+    const profes = td.dataset.profes ? td.dataset.profes.split('|') : [];
+    let html = profes.map(p => `<div class="popup-clase-prof" style="padding:4px 0; border-bottom:1px solid var(--border);">👨‍🏫 ${p}</div>`).join('');
+    html += `<a href="{{ url_for('cursos.nuevo') }}" class="btn btn-primary" style="width:100%;text-align:center;margin-top:12px;display:block;">+ Asignar curso aquí</a>`;
+    cuerpo.innerHTML = `
+      <div class="popup-clase" style="border-left-color:#97C459;">
+        <div class="popup-clase-nombre" style="color:#3B6D11;">Sala libre · ${profes.length} profes disponibles</div>
+        <div style="margin-top:8px;">${html}</div>
+      </div>`;
+  }
+
+  document.getElementById('popup-overlay').style.display = 'flex';
+}
+
+document.getElementById('popup-close').addEventListener('click', () => {
+  document.getElementById('popup-overlay').style.display = 'none';
+});
+document.getElementById('popup-overlay').addEventListener('click', e => {
+  if (e.target.id === 'popup-overlay')
+    document.getElementById('popup-overlay').style.display = 'none';
+});
+
+bindSlotClicks();
+</script>
+{% endblock %}
