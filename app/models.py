@@ -281,6 +281,9 @@ class Clase(db.Model):
     estado         = db.Column(db.String(20), default=CLASE_PROGRAMADA)
     reprogramada   = db.Column(db.Boolean, default=False)
     motivo_reprog  = db.Column(db.String(200))
+    profesor_reprog_id = db.Column(db.Integer, db.ForeignKey('profesores.id'))
+    sala_reprog        = db.Column(db.String(20))
+    profesor_reprog    = db.relationship('Profesor', foreign_keys=[profesor_reprog_id])
     creado_en      = db.Column(db.DateTime, default=datetime.utcnow)
 
     curso       = db.relationship('Curso', backref='clases')

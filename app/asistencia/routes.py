@@ -5,7 +5,8 @@ from flask_login import login_required, current_user
 
 from app.extensions import db
 from app.models import (Curso, Clase, Asistencia, DeudaAsistencia,
-                        Inscripcion, HorarioCurso,
+                        Inscripcion, HorarioCurso, Profesor, Usuario,
+                        DisponibilidadProfesor,
                         CLASE_PROGRAMADA, CLASE_REALIZADA, CLASE_CANCELADA,
                         CONF_PENDIENTE, CONF_SI, CONF_NO,
                         ASIST_PENDIENTE, ASIST_PRESENTE, ASIST_AUSENTE,
@@ -341,46 +342,125 @@ def resumen_mes(curso_id, anio, mes):
                            anio=anio, mes=mes, total_clases=total_clases)
 # ------------------------------------------------------------------
 # Reprogramar clase completa (todos los alumnos)
-# ------------------------------------------------------------------
+ 
 @asistencia_bp.route('/clase/<int:clase_id>/reprogramar', methods=['GET', 'POST'])
 @login_required
 @rol_requerido('admin')
 def reprogramar_clase(clase_id):
     clase = Clase.query.get_or_404(clase_id)
-
+ 
+    disponibilidades = DisponibilidadProfesor.query.filter_by(
+        profesor_id=clase.curso.profesor_id
+    ).order_by('dia_semana').all()
+ 
+    profesores = (Profesor.query
+                  .join(Usuario, Profesor.usuario_id == Usuario.id)
+                  .filter(Usuario.activo == True)
+                  .order_by(Usuario.nombre)
+                  .all())
+ 
     if request.method == 'POST':
-        nueva_fecha_str = request.form.get('fecha_nueva')
-        motivo         = request.form.get('motivo', '').strip()
-
+        nueva_fecha_str   = request.form.get('fecha_nueva')
+        nuevo_inicio      = request.form.get('hora_inicio', clase.hora_inicio)
+        nuevo_fin         = request.form.get('hora_fin',    clase.hora_fin)
+        nueva_sala        = request.form.get('sala') or clase.curso.sala
+        nuevo_profesor_id = request.form.get('profesor_id', type=int) or clase.curso.profesor_id
+        motivo            = request.form.get('motivo', '').strip()
+ 
         if not nueva_fecha_str:
             flash('Ingresá la nueva fecha.', 'danger')
             return redirect(url_for('asistencia.reprogramar_clase', clase_id=clase_id))
-
-        from datetime import date as date_type
-        nueva_fecha = date_type.fromisoformat(nueva_fecha_str)
-
-        # Guardar fecha original si es la primera reprogramación
+ 
+        nueva_fecha = date.fromisoformat(nueva_fecha_str)
+        dia_semana  = ['lunes','martes','miercoles','jueves',
+                       'viernes','sabado','domingo'][nueva_fecha.weekday()]
+ 
+        # Validación 1: sala libre en esa fecha y horario
+        if nueva_sala:
+            conflicto_sala = (Clase.query
+                .filter(Clase.fecha    == nueva_fecha)
+                .filter(Clase.id       != clase.id)
+                .filter(Clase.estado   != 'cancelada')
+                .join(Clase.curso)
+                .filter_by(sala=nueva_sala)
+                .filter(Clase.hora_inicio < nuevo_fin)
+                .filter(Clase.hora_fin    > nuevo_inicio)
+                .first())
+            if conflicto_sala:
+                flash(f'Conflicto de sala: "{conflicto_sala.curso.nombre}" ya ocupa '
+                      f'ese horario el {nueva_fecha.strftime("%d/%m/%Y")}.', 'danger')
+                return render_template('asistencia/reprogramar_clase.html',
+                                       clase=clase,
+                                       disponibilidades=disponibilidades,
+                                       profesores=profesores)
+ 
+        # Validación 2: disponibilidad del nuevo profesor
+        disp_nuevo_prof = DisponibilidadProfesor.query.filter_by(
+            profesor_id=nuevo_profesor_id,
+            dia_semana=dia_semana
+        ).all()
+ 
+        if disp_nuevo_prof:
+            tiene_disp = any(
+                d.hora_inicio <= nuevo_inicio and d.hora_fin >= nuevo_fin
+                for d in disp_nuevo_prof
+            )
+            if not tiene_disp:
+                prof_obj = Profesor.query.get(nuevo_profesor_id)
+                flash(f'{prof_obj.usuario.nombre} no tiene disponibilidad '
+                      f'el {dia_semana.capitalize()} {nuevo_inicio}–{nuevo_fin}.', 'danger')
+                return render_template('asistencia/reprogramar_clase.html',
+                                       clase=clase,
+                                       disponibilidades=disponibilidades,
+                                       profesores=profesores)
+ 
+        # Validación 3: nuevo profesor sin otro curso ese día/horario
+        conflicto_prof = (HorarioCurso.query
+            .join(Curso)
+            .filter(Curso.profesor_id == nuevo_profesor_id)
+            .filter(Curso.activo      == True)
+            .filter(Curso.id          != clase.curso_id)
+            .filter(HorarioCurso.dia_semana  == dia_semana)
+            .filter(HorarioCurso.hora_inicio <  nuevo_fin)
+            .filter(HorarioCurso.hora_fin    >  nuevo_inicio)
+            .first())
+        if conflicto_prof:
+            flash(f'El profesor ya tiene "{conflicto_prof.curso.nombre}" '
+                  f'el {dia_semana.capitalize()} '
+                  f'{conflicto_prof.hora_inicio}–{conflicto_prof.hora_fin}.', 'danger')
+            return render_template('asistencia/reprogramar_clase.html',
+                                   clase=clase,
+                                   disponibilidades=disponibilidades,
+                                   profesores=profesores)
+ 
+        # Guardar fecha original solo en la primera reprogramación
         if not clase.fecha_original:
             clase.fecha_original = clase.fecha
-
-        clase.fecha         = nueva_fecha
-        clase.reprogramada  = True
-        clase.motivo_reprog = motivo or None
-
-        # Resetear confirmaciones y notificaciones para nuevo ciclo N8N
+ 
+        clase.fecha              = nueva_fecha
+        clase.hora_inicio        = nuevo_inicio
+        clase.hora_fin           = nuevo_fin
+        clase.reprogramada       = True
+        clase.motivo_reprog      = motivo or None
+        clase.profesor_reprog_id = nuevo_profesor_id
+        clase.sala_reprog        = nueva_sala
+ 
         for asist in clase.asistencias:
-            asist.confirmacion = CONF_PENDIENTE
-            asist.asistencia   = ASIST_PENDIENTE
-            asist.notificado   = False
+            asist.confirmacion   = CONF_PENDIENTE
+            asist.asistencia     = ASIST_PENDIENTE
+            asist.notificado     = False
             asist.deuda_generada = False
-
+ 
         db.session.commit()
         flash(f'Clase reprogramada al {nueva_fecha.strftime("%d/%m/%Y")}. '
-              f'Se reiniciaron las confirmaciones para el nuevo ciclo.', 'success')
-
+              f'Se reiniciaron las confirmaciones.', 'success')
+ 
         return redirect(url_for('asistencia.index',
                                 curso_id=clase.curso_id,
                                 anio=nueva_fecha.year,
                                 mes=nueva_fecha.month))
-
-    return render_template('asistencia/reprogramar_clase.html', clase=clase)
+ 
+    return render_template('asistencia/reprogramar_clase.html',
+                           clase=clase,
+                           disponibilidades=disponibilidades,
+                           profesores=profesores)

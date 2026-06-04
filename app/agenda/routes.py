@@ -190,3 +190,65 @@ def datos_dia(fecha_str):
 
     datos = _construir_datos_dia(fecha)
     return jsonify(datos)
+
+# ---------------------------------------------------------------
+# AGREGAR al final de app/agenda/routes.py
+# Nuevo endpoint para el popup de disponibilidad en reprogramación
+# ---------------------------------------------------------------
+
+@agenda_bp.route('/disponibilidad-reprog/<fecha_str>')
+@login_required
+@rol_requerido('admin')
+def disponibilidad_reprog(fecha_str):
+    """
+    API JSON para el popup de reprogramación.
+    Recibe fecha y profesor_id del curso a reprogramar.
+    Devuelve datos del día con flag 'es_profe_curso' para priorizar
+    al profesor del curso en la grilla.
+    """
+    try:
+        fecha = date.fromisoformat(fecha_str)
+    except ValueError:
+        return jsonify({'error': 'fecha inválida'}), 400
+
+    profesor_id = request.args.get('profesor_id', type=int)
+    clase_id    = request.args.get('clase_id',    type=int)
+
+    datos = _construir_datos_dia(fecha)
+
+    # Marcar cuáles slots tienen al profesor del curso disponible
+    if profesor_id:
+        prof = Profesor.query.get(profesor_id)
+        nombre_prof = prof.usuario.nombre if prof else None
+
+        for hora, salas in datos.items():
+            for sala, slot in salas.items():
+                if slot['tipo'] == 'libre' and nombre_prof in slot.get('profes', []):
+                    slot['tiene_profe_curso'] = True
+                    # Mover al profesor del curso al inicio
+                    profes = slot['profes']
+                    profes.remove(nombre_prof)
+                    slot['profes'] = [f"{nombre_prof} (profe del curso)"] + profes
+                else:
+                    slot['tiene_profe_curso'] = False
+
+    # Agregar info de la semana para navegación
+    lunes = _lunes_de_semana(fecha)
+    dias_semana = []
+    for i in range(7):
+        d = lunes + timedelta(days=i)
+        dias_semana.append({
+            'fecha':  d.isoformat(),
+            'label':  ['Lun','Mar','Mié','Jue','Vie','Sáb','Dom'][i],
+            'numero': d.day,
+        })
+
+    return jsonify({
+        'fecha':           fecha_str,
+        'datos':           datos,
+        'horas':           HORAS_GRILLA,
+        'salas':           [SALA_LABELS[s] for s in SALAS],
+        'semana_anterior': (lunes - timedelta(weeks=1)).isoformat(),
+        'semana_siguiente':(lunes + timedelta(weeks=1)).isoformat(),
+        'dias_semana':     dias_semana,
+    })

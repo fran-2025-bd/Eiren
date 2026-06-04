@@ -221,17 +221,19 @@ def nueva_liquidacion():
 
 
 # confirmar_liquidacion
-# 
 def _calcular_liquidacion(profesor_id, mes, anio):
     profesor = Profesor.query.get(profesor_id)
     detalle = []
     total_confirmado = Decimal('0')
     total_pendiente  = Decimal('0')
-
+ 
+    # ------------------------------------------------------------------
+    # PARTE 1 — Clases de sus propios cursos
+    # ------------------------------------------------------------------
     for curso in profesor.cursos:
         if not curso.activo:
             continue
-
+ 
         clases_mes = (Clase.query
                       .filter_by(curso_id=curso.id)
                       .filter(extract('month', Clase.fecha) == mes)
@@ -241,54 +243,151 @@ def _calcular_liquidacion(profesor_id, mes, anio):
         total_clases = len(clases_mes)
         if not total_clases:
             continue
-
+ 
         for inscripcion in curso.alumnos_activos():
+            # Presencias del profesor ORIGINAL
+            # (excluir clases donde fue cubierto por otro)
             presencias = sum(
                 1 for c in clases_mes
                 for a in c.asistencias
                 if a.inscripcion_id == inscripcion.id
                 and a.asistencia == ASIST_PRESENTE
+                and (c.profesor_reprog_id is None or
+                     c.profesor_reprog_id == profesor_id)
             )
-            if not presencias:
+ 
+            # Clases que NO dio porque fueron cubiertas por otro
+            clases_no_dictadas = sum(
+                1 for c in clases_mes
+                if c.profesor_reprog_id is not None
+                and c.profesor_reprog_id != profesor_id
+            )
+ 
+            if presencias == 0 and clases_no_dictadas == 0:
                 continue
-
+ 
             valor_por_clase = float(inscripcion.arancel_final) / total_clases
-            monto = Decimal(str(
-                round(presencias * valor_por_clase * PORCENTAJE_PROFESOR, 2)
-            ))
-
+ 
+            # Monto por clases que sí dictó
+            monto = Decimal('0')
+            if presencias > 0:
+                monto = Decimal(str(
+                    round(presencias * valor_por_clase * PORCENTAJE_PROFESOR, 2)
+                ))
+ 
+            # Descuento por clases no dictadas (cubiertas por otro)
+            descuento = Decimal('0')
+            if clases_no_dictadas > 0:
+                # Verificar presencia del alumno en esas clases
+                presencias_no_dictadas = sum(
+                    1 for c in clases_mes
+                    for a in c.asistencias
+                    if a.inscripcion_id == inscripcion.id
+                    and a.asistencia == ASIST_PRESENTE
+                    and c.profesor_reprog_id is not None
+                    and c.profesor_reprog_id != profesor_id
+                )
+                if presencias_no_dictadas > 0:
+                    descuento = Decimal(str(
+                        round(presencias_no_dictadas * valor_por_clase * PORCENTAJE_PROFESOR, 2)
+                    ))
+ 
+            monto_neto = monto - descuento
+            if monto_neto == 0 and descuento == 0:
+                continue
+ 
             pago = PagoAlumno.query.filter_by(
-                inscripcion_id = inscripcion.id,
-                periodo_mes    = mes,
-                periodo_anio   = anio,
+                inscripcion_id=inscripcion.id,
+                periodo_mes=mes,
+                periodo_anio=anio,
             ).first()
-
+ 
+            if pago:
+                total_confirmado += monto_neto
+            else:
+                total_pendiente += monto_neto
+ 
+            detalle.append({
+                'tipo':             'propio',
+                'curso':            curso.nombre,
+                'alumno':           inscripcion.alumno.usuario.nombre,
+                'inscripcion_id':   inscripcion.id,
+                'clases_dadas':     total_clases,
+                'presencias':       presencias,
+                'clases_cubiertas': clases_no_dictadas,
+                'descuento':        descuento,
+                'arancel':          inscripcion.arancel_final,
+                'monto':            monto_neto,
+                'pago':             pago,
+                'pendiente':        pago is None,
+            })
+ 
+    # ------------------------------------------------------------------
+    # PARTE 2 — Clases extras cubiertas en cursos de otros profesores
+    # ------------------------------------------------------------------
+    clases_cubiertas = (Clase.query
+                        .filter(Clase.profesor_reprog_id == profesor_id)
+                        .filter(extract('month', Clase.fecha) == mes)
+                        .filter(extract('year',  Clase.fecha) == anio)
+                        .filter(Clase.estado != 'cancelada')
+                        .all())
+ 
+    for clase in clases_cubiertas:
+        curso = clase.curso
+ 
+        # Total clases del mes de ese curso
+        total_clases_curso = (Clase.query
+                              .filter_by(curso_id=curso.id)
+                              .filter(extract('month', Clase.fecha) == mes)
+                              .filter(extract('year',  Clase.fecha) == anio)
+                              .filter(Clase.estado != 'cancelada')
+                              .count())
+        if not total_clases_curso:
+            continue
+ 
+        for asist in clase.asistencias:
+            if asist.asistencia != ASIST_PRESENTE:
+                continue
+ 
+            inscripcion = asist.inscripcion
+            valor_por_clase = float(inscripcion.arancel_final) / total_clases_curso
+            monto = Decimal(str(
+                round(valor_por_clase * PORCENTAJE_PROFESOR, 2)
+            ))
+ 
+            pago = PagoAlumno.query.filter_by(
+                inscripcion_id=inscripcion.id,
+                periodo_mes=mes,
+                periodo_anio=anio,
+            ).first()
+ 
             if pago:
                 total_confirmado += monto
             else:
                 total_pendiente += monto
-
+ 
             detalle.append({
+                'tipo':           'cubierta',
                 'curso':          curso.nombre,
                 'alumno':         inscripcion.alumno.usuario.nombre,
                 'inscripcion_id': inscripcion.id,
-                'clases_dadas':   total_clases,
-                'presencias':     presencias,
+                'fecha_clase':    clase.fecha.strftime('%d/%m/%Y'),
+                'clases_dadas':   total_clases_curso,
+                'presencias':     1,
                 'arancel':        inscripcion.arancel_final,
                 'monto':          monto,
                 'pago':           pago,
                 'pendiente':      pago is None,
             })
-
+ 
     return {
         'profesor':         profesor,
         'mes':              mes,
         'anio':             anio,
-        'detalle':          detalle,          # <-- era 'items', ahora 'detalle'
+        'detalle':          detalle,
         'total_confirmado': total_confirmado,
         'total_pendiente':  total_pendiente,
     }
-
 
 @caja_bp.route('/liquidacion/confirmar', methods=['POST'])
 @login_required

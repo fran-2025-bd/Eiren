@@ -7,7 +7,7 @@
     <h2>Reprogramar clase</h2>
     <p class="text-muted">
       {{ clase.curso.nombre }} ·
-      {{ clase.fecha.strftime('%d/%m/%Y') }}
+      Fecha actual: {{ clase.fecha.strftime('%d/%m/%Y') }}
       {{ clase.hora_inicio }} – {{ clase.hora_fin }}
     </p>
   </div>
@@ -20,15 +20,32 @@
 <div class="flash flash-warning" style="margin-bottom:1rem;">
   Esta clase ya fue reprogramada anteriormente.
   Fecha original: <strong>{{ clase.fecha_original.strftime('%d/%m/%Y') }}</strong>.
-  Si la reprogramás de nuevo se mantendrá la fecha original y se actualizará la nueva fecha.
 </div>
 {% endif %}
 
-<form method="POST">
+{% if disponibilidades %}
+<div class="ficha-card ficha-card--full" style="margin-bottom:1rem;">
+  <h3 class="ficha-card-title">Disponibilidad de {{ clase.curso.profesor.usuario.nombre }}</h3>
+  <div style="display:flex; flex-wrap:wrap; gap:8px;">
+    {% for d in disponibilidades %}
+    <div class="horario-pill">
+      <span class="horario-dia">{{ d.dia_semana|capitalize }}</span>
+      <span class="horario-hora">{{ d.hora_inicio }} – {{ d.hora_fin }}</span>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% else %}
+<div class="flash flash-warning" style="margin-bottom:1rem;">
+  ⚠ {{ clase.curso.profesor.usuario.nombre }} no tiene disponibilidad declarada.
+</div>
+{% endif %}
+
+<form method="POST" id="form-reprog">
   <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
 
   <div class="form-section">
-    <h3 class="form-section-title">Nueva fecha de la clase</h3>
+    <h3 class="form-section-title">Nueva fecha y horario</h3>
     <div class="form-grid">
 
       <div class="form-group">
@@ -39,10 +56,51 @@
       </div>
 
       <div class="form-group">
-        <label>Nueva fecha</label>
-        <input type="date" name="fecha_nueva" required
-               min="{{ clase.fecha.isoformat() }}">
-        <span class="form-hint">Ingresá la fecha a la que se mueve la clase.</span>
+        <label>Nueva fecha <span style="color:var(--danger-text);">*</span></label>
+        <input type="date" name="fecha_nueva" id="input-fecha" required>
+      </div>
+
+      <div class="form-group">
+        <label>Hora inicio</label>
+        <input type="time" name="hora_inicio" id="input-inicio" value="{{ clase.hora_inicio or '' }}">
+      </div>
+
+      <div class="form-group">
+        <label>Hora fin</label>
+        <input type="time" name="hora_fin" id="input-fin" value="{{ clase.hora_fin or '' }}">
+      </div>
+
+      <div class="form-group">
+        <label>Sala</label>
+        <select name="sala" id="input-sala">
+          <option value="">— Misma sala ({{ clase.curso.sala_label() if clase.curso.sala else 'sin sala' }}) —</option>
+          <option value="sala_1">Sala 1</option>
+          <option value="sala_2">Sala 2</option>
+          <option value="sala_3">Sala 3</option>
+        </select>
+        <span class="form-hint">Podés cambiar de sala si está disponible.</span>
+      </div>
+
+      {# Profesor + botón ver disponibilidad juntos #}
+      <div class="form-group">
+        <label>Profesor</label>
+        <div style="display:flex; gap:8px; align-items:center;">
+          <select name="profesor_id" id="input-profesor" style="flex:1;">
+            <option value="">— Mismo profesor ({{ clase.curso.profesor.usuario.nombre }}) —</option>
+            {% for p in profesores %}
+            <option value="{{ p.id }}"
+                    {% if p.id == clase.curso.profesor_id %}style="font-weight:600;"{% endif %}>
+              {{ p.usuario.nombre }}
+              {% if p.id == clase.curso.profesor_id %}(profe del curso){% endif %}
+            </option>
+            {% endfor %}
+          </select>
+          <button type="button" class="btn btn-secondary" id="btn-ver-disp"
+                  style="white-space:nowrap; padding:8px 12px; font-size:12px;">
+            📅 Ver disponibilidad
+          </button>
+        </div>
+        <span class="form-hint">Solo para esta clase. No modifica el curso.</span>
       </div>
 
       <div class="form-group form-group--full">
@@ -58,16 +116,12 @@
   <div class="form-section">
     <h3 class="form-section-title">Alumnos afectados</h3>
     <p class="text-muted" style="font-size:13px; margin-bottom:.75rem;">
-      Al reprogramar, todos los alumnos recibirán una nueva confirmación por WhatsApp
-      para la fecha indicada.
+      Al reprogramar, todos los alumnos recibirán una nueva confirmación por WhatsApp.
     </p>
     <div class="table-wrapper" style="border:none; background:transparent;">
       <table class="tabla">
         <thead>
-          <tr>
-            <th>Alumno</th>
-            <th>Confirmación actual</th>
-          </tr>
+          <tr><th>Alumno</th><th>Confirmación actual</th></tr>
         </thead>
         <tbody>
           {% for a in clase.asistencias %}
@@ -98,6 +152,226 @@
                anio=clase.fecha.year, mes=clase.fecha.month) }}"
        class="btn btn-ghost">Cancelar</a>
   </div>
-
 </form>
+
+{# ── Popup compacto ── #}
+<style>
+.popup-disp-overlay{position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:300;display:flex;align-items:center;justify-content:center;padding:1rem;}
+.popup-disp{background:var(--bg-surface);border:1px solid var(--border);border-radius:var(--radius-lg);width:100%;max-width:580px;max-height:90vh;display:flex;flex-direction:column;overflow:hidden;}
+.pd-header{display:flex;align-items:center;justify-content:space-between;padding:10px 14px;border-bottom:1px solid var(--border);flex-shrink:0;}
+.pd-nav{display:flex;align-items:center;gap:8px;padding:8px 14px 4px;border-bottom:1px solid var(--border);flex-shrink:0;}
+.pd-tabs{display:flex;gap:3px;padding:7px 14px 4px;overflow-x:auto;flex-shrink:0;border-bottom:1px solid var(--border);}
+.pd-tab{font-size:11px;padding:3px 10px;border-radius:20px;border:1px solid var(--border);background:var(--bg-card);color:var(--text-secondary);cursor:pointer;white-space:nowrap;}
+.pd-tab.active{background:#1A2A3A;border-color:#378ADD;color:#90B8E0;font-weight:500;}
+.pd-body{overflow-y:auto;flex:1;padding:8px 14px;}
+.pd-grilla{width:100%;border-collapse:separate;border-spacing:2px;min-width:380px;}
+.pd-th-hora{width:40px;}
+.pd-th-sala{text-align:center;font-size:10px;font-weight:500;padding:4px 3px;border-radius:3px;}
+.pd-th-s1{background:#1A2A3A;color:#90B0D0;}
+.pd-th-s2{background:#0A2A1A;color:#70C090;}
+.pd-th-s3{background:#2A1A0A;color:#C09060;}
+.pd-hora{font-size:10px;color:var(--text-hint);text-align:right;padding-right:5px;vertical-align:middle;white-space:nowrap;}
+.pd-slot{border-radius:3px;padding:4px 5px;font-size:10px;vertical-align:top;border:1px solid transparent;cursor:pointer;height:36px;transition:opacity .15s;}
+.pd-slot:hover{opacity:.8;}
+.pd-slot.ocupado{background:#1A2A3A;border-color:#378ADD;cursor:default;}
+.pd-slot.reprog{background:#2A1E0A;border:1px dashed #EF9F27;cursor:default;}
+.pd-slot.c-profe{background:#0A1F0A;border-color:#3B6D11;}
+.pd-slot.c-libre{background:var(--bg-card);border-color:var(--border);}
+.pd-slot.c-vacio{background:transparent;border-color:transparent;cursor:default;}
+.pd-slot.selected{background:#0A3A0A;border:2px solid #3B6D11;}
+.pd-slot-txt{font-size:10px;line-height:1.2;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;}
+.pd-leyenda{display:flex;gap:10px;padding:6px 14px;border-top:1px solid var(--border);flex-wrap:wrap;flex-shrink:0;}
+.pd-ley{display:flex;align-items:center;gap:4px;font-size:10px;color:var(--text-muted);}
+.pd-ley-box{width:10px;height:10px;border-radius:2px;flex-shrink:0;}
+.pd-footer{display:flex;align-items:center;justify-content:space-between;padding:8px 14px;background:var(--bg-card);border-top:1px solid var(--border);flex-shrink:0;}
+</style>
+
+<div class="popup-disp-overlay" id="popup-disp" style="display:none;">
+  <div class="popup-disp">
+    <div class="pd-header">
+      <span style="font-size:12px;font-weight:500;color:var(--sepia-mid);" id="pop-titulo">Disponibilidad</span>
+      <button style="background:none;border:none;color:var(--text-muted);font-size:16px;cursor:pointer;" id="pop-close">&#x2715;</button>
+    </div>
+    <div class="pd-nav">
+      <button class="btn btn-ghost" style="padding:3px 8px;font-size:11px;" id="pop-prev">‹</button>
+      <span style="font-size:11px;color:var(--text-secondary);flex:1;text-align:center;" id="pop-semana-label"></span>
+      <button class="btn btn-ghost" style="padding:3px 8px;font-size:11px;" id="pop-next">›</button>
+    </div>
+    <div class="pd-tabs" id="pop-tabs"></div>
+    <div class="pd-body">
+      <table class="pd-grilla" id="pop-tabla"></table>
+    </div>
+    <div class="pd-leyenda">
+      <div class="pd-ley"><div class="pd-ley-box" style="background:#0A1F0A;border:1px solid #3B6D11;"></div>profe seleccionado</div>
+      <div class="pd-ley"><div class="pd-ley-box" style="background:var(--bg-card);border:1px solid var(--border);"></div>libre</div>
+      <div class="pd-ley"><div class="pd-ley-box" style="background:#1A2A3A;border:1px solid #378ADD;"></div>ocupado</div>
+      <div class="pd-ley"><div class="pd-ley-box" style="background:#0A3A0A;border:2px solid #3B6D11;"></div>seleccionado</div>
+    </div>
+    <div class="pd-footer">
+      <span style="font-size:11px;color:var(--text-muted);" id="pop-sel-info">Seleccioná un slot</span>
+      <button class="btn btn-primary" style="font-size:11px;padding:5px 12px;"
+              id="pop-confirmar" disabled onclick="confirmarSeleccion()">Usar este horario</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const PROFESOR_ID_CURSO = {{ clase.curso.profesor_id }};
+const CLASE_ID = {{ clase.id }};
+const SALAS_KEYS = {'Sala 1':'sala_1','Sala 2':'sala_2','Sala 3':'sala_3'};
+const HORAS_SLOT = ['07:00','08:00','09:00','10:00','11:00','12:00','13:00','14:00','15:00','16:00','17:00','18:00','19:00','20:00'];
+
+let semanaActual=null,diasSemana=[],diaActivoIdx=0,datosCache={},seleccionActual=null;
+
+function getProfesorId() {
+  const sel = document.getElementById('input-profesor');
+  return sel.value ? parseInt(sel.value) : PROFESOR_ID_CURSO;
+}
+
+function getNombreProfesor() {
+  const sel = document.getElementById('input-profesor');
+  if (!sel.value) return '{{ clase.curso.profesor.usuario.nombre }}';
+  return sel.options[sel.selectedIndex].text.replace(' (profe del curso)','').trim();
+}
+
+document.getElementById('btn-ver-disp').addEventListener('click', () => {
+  const ref = document.getElementById('input-fecha').value || new Date().toISOString().split('T')[0];
+  document.getElementById('pop-titulo').textContent = 'Disponibilidad — ' + getNombreProfesor();
+  cargarSemana(ref);
+  document.getElementById('popup-disp').style.display = 'flex';
+});
+
+document.getElementById('pop-close').addEventListener('click', () => {
+  document.getElementById('popup-disp').style.display = 'none';
+});
+document.getElementById('popup-disp').addEventListener('click', e => {
+  if (e.target.id === 'popup-disp') document.getElementById('popup-disp').style.display = 'none';
+});
+document.getElementById('pop-prev').addEventListener('click', () => {
+  if (!semanaActual) return;
+  const d = new Date(semanaActual+'T00:00:00'); d.setDate(d.getDate()-7);
+  cargarSemana(d.toISOString().split('T')[0]);
+});
+document.getElementById('pop-next').addEventListener('click', () => {
+  if (!semanaActual) return;
+  const d = new Date(semanaActual+'T00:00:00'); d.setDate(d.getDate()+7);
+  cargarSemana(d.toISOString().split('T')[0]);
+});
+
+// Actualizar título y recargar si cambia el profesor
+document.getElementById('input-profesor').addEventListener('change', () => {
+  if (document.getElementById('popup-disp').style.display !== 'none') {
+    document.getElementById('pop-titulo').textContent = 'Disponibilidad — ' + getNombreProfesor();
+    datosCache = {};
+    cargarDia(diasSemana[diaActivoIdx]?.fecha || new Date().toISOString().split('T')[0]);
+  }
+});
+
+async function cargarSemana(fechaRef) {
+  const profId = getProfesorId();
+  const resp = await fetch(`/agenda/disponibilidad-reprog/${fechaRef}?profesor_id=${profId}&clase_id=${CLASE_ID}`);
+  const json = await resp.json();
+  semanaActual = json.dias_semana[0].fecha;
+  diasSemana   = json.dias_semana;
+  datosCache   = {};
+  datosCache[json.fecha] = json.datos;
+  diaActivoIdx = diasSemana.findIndex(d => d.fecha === json.fecha) || 0;
+  const d0=diasSemana[0], d6=diasSemana[6];
+  document.getElementById('pop-semana-label').textContent = `${d0.label} ${d0.numero} – ${d6.label} ${d6.numero}`;
+  renderTabs();
+  await cargarDia(diasSemana[diaActivoIdx].fecha);
+}
+
+function renderTabs() {
+  const tabs = document.getElementById('pop-tabs');
+  tabs.innerHTML = '';
+  diasSemana.forEach((d,i) => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'pd-tab' + (i===diaActivoIdx?' active':'');
+    btn.textContent = d.label + ' ' + d.numero;
+    btn.addEventListener('click', () => { diaActivoIdx=i; renderTabs(); cargarDia(d.fecha); });
+    tabs.appendChild(btn);
+  });
+}
+
+async function cargarDia(fecha) {
+  if (!datosCache[fecha]) {
+    const profId = getProfesorId();
+    const resp = await fetch(`/agenda/disponibilidad-reprog/${fecha}?profesor_id=${profId}&clase_id=${CLASE_ID}`);
+    const json = await resp.json();
+    datosCache[fecha] = json.datos;
+  }
+  renderGrilla(fecha, datosCache[fecha]);
+}
+
+function renderGrilla(fecha, datos) {
+  const tabla = document.getElementById('pop-tabla');
+  tabla.innerHTML = '';
+  const tr0 = document.createElement('tr');
+  tr0.innerHTML = '<td class="pd-th-hora"></td>' +
+    ['Sala 1','Sala 2','Sala 3'].map((s,i) =>
+      `<th class="pd-th-sala pd-th-s${i+1}">${s}</th>`).join('');
+  tabla.appendChild(tr0);
+
+  HORAS_SLOT.forEach(hora => {
+    const horaFin = `${String(parseInt(hora)+1).padStart(2,'0')}:${hora.slice(3)}`;
+    const tr = document.createElement('tr');
+    const tdH = document.createElement('td');
+    tdH.className='pd-hora'; tdH.textContent=hora; tr.appendChild(tdH);
+    ['Sala 1','Sala 2','Sala 3'].forEach(sala => {
+      const slot = (datos[hora]||{})[sala] || {tipo:'sin_disp'};
+      const td = document.createElement('td'); td.className='pd-slot';
+      if (slot.tipo==='fijo'||slot.tipo==='reprog') {
+        td.classList.add(slot.tipo==='reprog'?'reprog':'ocupado');
+        const txt=document.createElement('div');
+        txt.className='pd-slot-txt';
+        txt.style.color=slot.tipo==='reprog'?'#C09040':'#90B8E0';
+        txt.textContent=slot.curso;
+        td.appendChild(txt);
+      } else if (slot.tipo==='libre') {
+        td.classList.add(slot.tiene_profe_curso?'c-profe':'c-libre');
+        const txt=document.createElement('div');
+        txt.className='pd-slot-txt';
+        txt.style.color=slot.tiene_profe_curso?'#70A050':'var(--text-hint)';
+        txt.textContent=slot.tiene_profe_curso
+          ? slot.profes[0].replace(' (profe del curso)',' ✓')
+          : (slot.profes&&slot.profes.length?'+'+slot.profes.length+' profes':'libre');
+        td.appendChild(txt);
+        td.dataset.fecha=fecha; td.dataset.hora=hora; td.dataset.horaFin=horaFin;
+        td.dataset.sala=SALAS_KEYS[sala]||''; td.dataset.salaLabel=sala;
+        td.addEventListener('click',()=>seleccionarSlot(td));
+      } else {
+        td.classList.add('c-vacio');
+      }
+      tr.appendChild(td);
+    });
+    tabla.appendChild(tr);
+  });
+}
+
+function seleccionarSlot(td) {
+  document.querySelectorAll('.pd-slot.selected').forEach(el=>el.classList.remove('selected'));
+  td.classList.add('selected');
+  seleccionActual={
+    fecha:td.dataset.fecha, hora:td.dataset.hora,
+    horaFin:td.dataset.horaFin, sala:td.dataset.sala, salaLabel:td.dataset.salaLabel
+  };
+  const fechaObj=new Date(td.dataset.fecha+'T00:00:00');
+  const disp=fechaObj.toLocaleDateString('es-AR',{weekday:'short',day:'numeric',month:'short'});
+  document.getElementById('pop-sel-info').innerHTML =
+    `<strong>${disp}</strong> · ${td.dataset.hora}–${td.dataset.horaFin} · <strong>${td.dataset.salaLabel}</strong>`;
+  document.getElementById('pop-confirmar').disabled=false;
+}
+
+function confirmarSeleccion() {
+  if (!seleccionActual) return;
+  document.getElementById('input-fecha').value  = seleccionActual.fecha;
+  document.getElementById('input-inicio').value = seleccionActual.hora;
+  document.getElementById('input-fin').value    = seleccionActual.horaFin;
+  if (seleccionActual.sala)
+    document.getElementById('input-sala').value = seleccionActual.sala;
+  document.getElementById('popup-disp').style.display='none';
+}
+</script>
 {% endblock %}

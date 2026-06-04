@@ -6,7 +6,7 @@ from app.models import Usuario, Profesor, ROL_PROFESOR
 from app.profesores.forms import ProfesorForm
 from app.auth.routes import rol_requerido
 from . import profesores_bp
-from app.models import DisponibilidadProfesor
+from app.models import DisponibilidadProfesor, Profesor as ProfesorModel, Usuario
 
 # ------------------------------------------------------------------
 # Listado

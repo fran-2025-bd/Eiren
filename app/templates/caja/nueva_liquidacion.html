@@ -42,24 +42,51 @@
     <table class="tabla">
       <thead>
         <tr>
+          <th>Tipo</th>
           <th>Curso</th>
           <th>Alumno</th>
-          <th>Clases dadas</th>
+          <th>Clases del mes</th>
           <th>Presencias</th>
           <th>Arancel</th>
-          <th>Monto (70%)</th>
-          <th>Estado pago</th>
+          <th>Monto</th>
+          <th>Pago alumno</th>
         </tr>
       </thead>
       <tbody>
         {% for item in preview.detalle %}
         <tr>
-          <td>{{ item.curso }}</td>
+          <td>
+            {% if item.tipo == 'cubierta' %}
+              <span class="badge badge-individual"
+                    title="Clase extra del {{ item.fecha_clase }}">
+                Clase extra
+              </span>
+            {% elif item.descuento and item.descuento > 0 %}
+              <span class="badge badge-inactivo">Con descuento</span>
+            {% else %}
+              <span class="badge badge-alumno">Normal</span>
+            {% endif %}
+          </td>
+          <td>
+            {{ item.curso }}
+            {% if item.tipo == 'cubierta' %}
+              <div style="font-size:10px; color:var(--text-hint);">{{ item.fecha_clase }}</div>
+            {% endif %}
+          </td>
           <td><strong>{{ item.alumno }}</strong></td>
           <td>{{ item.clases_dadas }}</td>
           <td>{{ item.presencias }}</td>
           <td>${{ item.arancel|moneda }}</td>
-          <td style="font-weight:600;">${{ item.monto|moneda }}</td>
+          <td>
+            <span style="font-weight:600; {% if item.monto < 0 %}color:var(--danger-text);{% endif %}">
+              ${{ item.monto|moneda }}
+            </span>
+            {% if item.descuento and item.descuento > 0 %}
+              <div style="font-size:10px; color:var(--danger-text);">
+                -${{ item.descuento|moneda }} por clases cubiertas
+              </div>
+            {% endif %}
+          </td>
           <td>
             {% if item.pago %}
               <span class="badge badge-activo">Pagó</span>
