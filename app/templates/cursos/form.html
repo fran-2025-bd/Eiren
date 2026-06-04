@@ -27,7 +27,7 @@
 
       <div class="form-group {% if form.profesor_id.errors %}has-error{% endif %}">
         {{ form.profesor_id.label }}
-        {{ form.profesor_id() }}
+        {{ form.profesor_id(id="select-profesor") }}
         {% for e in form.profesor_id.errors %}<span class="form-error">{{ e }}</span>{% endfor %}
       </div>
 
@@ -45,7 +45,7 @@
 
       <div class="form-group">
         {{ form.sala.label }}
-        {{ form.sala() }}
+        {{ form.sala(id="select-sala") }}
         <span class="form-hint">Asigná la sala donde se dictará el curso.</span>
       </div>
 
@@ -58,9 +58,14 @@
   </div>
 
   <div class="form-section">
-    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem; flex-wrap:wrap; gap:8px;">
       <h3 class="form-section-title" style="margin-bottom:0;">Horarios</h3>
-      <button type="button" class="btn btn-secondary" id="btn-add-horario">+ Agregar horario</button>
+      <div style="display:flex; gap:8px;">
+        <button type="button" class="btn btn-secondary" id="btn-ver-disp">
+          📅 Ver disponibilidad
+        </button>
+        <button type="button" class="btn btn-secondary" id="btn-add-horario">+ Agregar horario</button>
+      </div>
     </div>
 
     <div id="horarios-container">
@@ -162,12 +167,338 @@
   </div>
 </template>
 
+{# ── Popup disponibilidad para nuevo curso ── #}
+<style>
+.popup-disp-overlay{position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:300;display:flex;align-items:center;justify-content:center;padding:1rem;}
+.popup-disp{background:var(--bg-surface);border:1px solid var(--border);border-radius:var(--radius-lg);width:100%;max-width:600px;max-height:90vh;display:flex;flex-direction:column;overflow:hidden;}
+.pd-header{display:flex;align-items:center;justify-content:space-between;padding:10px 14px;border-bottom:1px solid var(--border);flex-shrink:0;}
+.pd-nav{display:flex;align-items:center;gap:8px;padding:8px 14px 4px;border-bottom:1px solid var(--border);flex-shrink:0;}
+.pd-tabs{display:flex;gap:3px;padding:7px 14px 4px;overflow-x:auto;flex-shrink:0;border-bottom:1px solid var(--border);}
+.pd-tab{font-size:11px;padding:3px 10px;border-radius:20px;border:1px solid var(--border);background:var(--bg-card);color:var(--text-secondary);cursor:pointer;white-space:nowrap;}
+.pd-tab.active{background:#1A2A3A;border-color:#378ADD;color:#90B8E0;font-weight:500;}
+.pd-body{overflow-y:auto;flex:1;padding:8px 14px;}
+.pd-grilla{width:100%;border-collapse:separate;border-spacing:2px;min-width:380px;}
+.pd-th-hora{width:40px;}
+.pd-th-sala{text-align:center;font-size:10px;font-weight:500;padding:4px 3px;border-radius:3px;}
+.pd-th-s1{background:#1A2A3A;color:#90B0D0;}
+.pd-th-s2{background:#0A2A1A;color:#70C090;}
+.pd-th-s3{background:#2A1A0A;color:#C09060;}
+.pd-hora{font-size:10px;color:var(--text-hint);text-align:right;padding-right:5px;vertical-align:middle;white-space:nowrap;}
+.pd-slot{border-radius:3px;padding:4px 5px;font-size:10px;vertical-align:top;border:1px solid transparent;cursor:pointer;height:36px;transition:opacity .15s;}
+.pd-slot:hover{opacity:.8;}
+.pd-slot.ocupado{background:#1A2A3A;border-color:#378ADD;cursor:default;opacity:.6;}
+.pd-slot.reprog{background:#2A1E0A;border:1px dashed #EF9F27;cursor:default;opacity:.6;}
+.pd-slot.c-profe{background:#0A1F0A;border-color:#3B6D11;}
+.pd-slot.c-libre{background:var(--bg-card);border-color:var(--border);}
+.pd-slot.c-vacio{background:transparent;border-color:transparent;cursor:default;}
+.pd-slot.selected{background:#0A3A0A;border:2px solid #3B6D11;}
+.pd-slot-txt{font-size:10px;line-height:1.2;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;}
+.pd-sel-count{font-size:11px;color:#70A050;font-weight:500;}
+.pd-leyenda{display:flex;gap:10px;padding:6px 14px;border-top:1px solid var(--border);flex-wrap:wrap;flex-shrink:0;}
+.pd-ley{display:flex;align-items:center;gap:4px;font-size:10px;color:var(--text-muted);}
+.pd-ley-box{width:10px;height:10px;border-radius:2px;flex-shrink:0;}
+.pd-footer{display:flex;align-items:center;justify-content:space-between;padding:8px 14px;background:var(--bg-card);border-top:1px solid var(--border);flex-shrink:0;}
+</style>
+
+<div class="popup-disp-overlay" id="popup-disp" style="display:none;">
+  <div class="popup-disp">
+    <div class="pd-header">
+      <span style="font-size:12px;font-weight:500;color:var(--sepia-mid);" id="pop-titulo">Disponibilidad</span>
+      <button style="background:none;border:none;color:var(--text-muted);font-size:16px;cursor:pointer;" id="pop-close">&#x2715;</button>
+    </div>
+    <div class="pd-nav">
+      <button class="btn btn-ghost" style="padding:3px 8px;font-size:11px;" id="pop-prev">‹</button>
+      <span style="font-size:11px;color:var(--text-secondary);flex:1;text-align:center;" id="pop-semana-label"></span>
+      <button class="btn btn-ghost" style="padding:3px 8px;font-size:11px;" id="pop-next">›</button>
+    </div>
+    <div class="pd-tabs" id="pop-tabs"></div>
+    <div class="pd-body">
+      <table class="pd-grilla" id="pop-tabla"></table>
+    </div>
+    <div class="pd-leyenda">
+      <div class="pd-ley"><div class="pd-ley-box" style="background:#0A1F0A;border:1px solid #3B6D11;"></div>profe disponible</div>
+      <div class="pd-ley"><div class="pd-ley-box" style="background:var(--bg-card);border:1px solid var(--border);"></div>sala libre</div>
+      <div class="pd-ley"><div class="pd-ley-box" style="background:#1A2A3A;border:1px solid #378ADD;opacity:.6;"></div>ocupado</div>
+      <div class="pd-ley"><div class="pd-ley-box" style="background:#0A3A0A;border:2px solid #3B6D11;"></div>seleccionado</div>
+    </div>
+    <div class="pd-footer">
+      <span style="font-size:11px;color:var(--text-muted);" id="pop-sel-info">
+        Seleccioná los slots de cada día que tendrá el curso
+      </span>
+      <button class="btn btn-primary" style="font-size:11px;padding:5px 12px;"
+              id="pop-confirmar" disabled onclick="confirmarSeleccionCurso()">
+        Aplicar horarios (<span id="pop-count">0</span>)
+      </button>
+    </div>
+  </div>
+</div>
+
 <script>
+const SALAS_KEYS  = {'Sala 1':'sala_1','Sala 2':'sala_2','Sala 3':'sala_3'};
+const DIAS_NAMES  = {'lunes':'Lun','martes':'Mar','miercoles':'Mié','jueves':'Jue','viernes':'Vie','sabado':'Sáb','domingo':'Dom'};
+const HORAS_SLOT  = ['07:00','08:00','09:00','10:00','11:00','12:00','13:00','14:00','15:00','16:00','17:00','18:00','19:00','20:00'];
+
+let semanaActual=null, diasSemana=[], diaActivoIdx=0;
+let datosCache={};
+let slotsSeleccionados = {}; // key: "dia_semana|hora_inicio|hora_fin" value: {dia, inicio, fin, sala}
+
+function getProfesorId() {
+  const sel = document.getElementById('select-profesor');
+  return sel ? sel.value : '';
+}
+
+function getSala() {
+  const sel = document.getElementById('select-sala');
+  return sel ? sel.value : '';
+}
+
+// Abrir popup
+document.getElementById('btn-ver-disp').addEventListener('click', () => {
+  const profId = getProfesorId();
+  if (!profId) {
+    alert('Seleccioná un profesor primero.');
+    return;
+  }
+  const ref = new Date().toISOString().split('T')[0];
+  cargarSemana(ref);
+  document.getElementById('popup-disp').style.display = 'flex';
+  actualizarTitulo();
+});
+
+document.getElementById('pop-close').addEventListener('click', () => {
+  document.getElementById('popup-disp').style.display = 'none';
+});
+document.getElementById('popup-disp').addEventListener('click', e => {
+  if (e.target.id === 'popup-disp') document.getElementById('popup-disp').style.display = 'none';
+});
+document.getElementById('pop-prev').addEventListener('click', () => {
+  if (!semanaActual) return;
+  const d = new Date(semanaActual+'T00:00:00'); d.setDate(d.getDate()-7);
+  cargarSemana(d.toISOString().split('T')[0]);
+});
+document.getElementById('pop-next').addEventListener('click', () => {
+  if (!semanaActual) return;
+  const d = new Date(semanaActual+'T00:00:00'); d.setDate(d.getDate()+7);
+  cargarSemana(d.toISOString().split('T')[0]);
+});
+
+// Recargar si cambia el profesor
+document.getElementById('select-profesor').addEventListener('change', () => {
+  datosCache = {};
+  if (document.getElementById('popup-disp').style.display !== 'none') {
+    actualizarTitulo();
+    if (diasSemana.length) cargarDia(diasSemana[diaActivoIdx].fecha);
+  }
+});
+
+function actualizarTitulo() {
+  const sel = document.getElementById('select-profesor');
+  const nombre = sel.options[sel.selectedIndex]?.text || 'profesor';
+  document.getElementById('pop-titulo').textContent = 'Disponibilidad — ' + nombre;
+}
+
+async function cargarSemana(fechaRef) {
+  const profId = getProfesorId();
+  const resp = await fetch(`/agenda/disponibilidad-reprog/${fechaRef}?profesor_id=${profId}`);
+  const json = await resp.json();
+  semanaActual = json.dias_semana[0].fecha;
+  diasSemana   = json.dias_semana;
+  datosCache   = {};
+  datosCache[json.fecha] = json.datos;
+  diaActivoIdx = diasSemana.findIndex(d => d.fecha === json.fecha) || 0;
+  const d0=diasSemana[0], d6=diasSemana[6];
+  document.getElementById('pop-semana-label').textContent =
+    `${d0.label} ${d0.numero} – ${d6.label} ${d6.numero}`;
+  renderTabs();
+  await cargarDia(diasSemana[diaActivoIdx].fecha);
+}
+
+function renderTabs() {
+  const tabs = document.getElementById('pop-tabs');
+  tabs.innerHTML = '';
+  diasSemana.forEach((d,i) => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'pd-tab' + (i===diaActivoIdx?' active':'');
+    btn.textContent = d.label + ' ' + d.numero;
+    btn.addEventListener('click', () => { diaActivoIdx=i; renderTabs(); cargarDia(d.fecha); });
+    tabs.appendChild(btn);
+  });
+}
+
+async function cargarDia(fecha) {
+  if (!datosCache[fecha]) {
+    const profId = getProfesorId();
+    const resp = await fetch(`/agenda/disponibilidad-reprog/${fecha}?profesor_id=${profId}`);
+    const json = await resp.json();
+    datosCache[fecha] = json.datos;
+  }
+  renderGrilla(fecha, datosCache[fecha]);
+}
+
+function renderGrilla(fecha, datos) {
+  const tabla = document.getElementById('pop-tabla');
+  tabla.innerHTML = '';
+  const diaSemana = diasSemana[diaActivoIdx];
+
+  // Header salas
+  const tr0 = document.createElement('tr');
+  tr0.innerHTML = '<td class="pd-th-hora"></td>' +
+    ['Sala 1','Sala 2','Sala 3'].map((s,i) =>
+      `<th class="pd-th-sala pd-th-s${i+1}">${s}</th>`).join('');
+  tabla.appendChild(tr0);
+
+  HORAS_SLOT.forEach(hora => {
+    const horaFin = `${String(parseInt(hora)+1).padStart(2,'0')}:${hora.slice(3)}`;
+    const tr = document.createElement('tr');
+    const tdH = document.createElement('td');
+    tdH.className='pd-hora'; tdH.textContent=hora; tr.appendChild(tdH);
+
+    ['Sala 1','Sala 2','Sala 3'].forEach(sala => {
+      const slot = (datos[hora]||{})[sala] || {tipo:'sin_disp'};
+      const td = document.createElement('td'); td.className='pd-slot';
+
+      if (slot.tipo==='fijo'||slot.tipo==='reprog') {
+        td.classList.add(slot.tipo==='reprog'?'reprog':'ocupado');
+        const txt=document.createElement('div');
+        txt.className='pd-slot-txt';
+        txt.style.color=slot.tipo==='reprog'?'#C09040':'#90B8E0';
+        txt.textContent=slot.curso;
+        td.appendChild(txt);
+
+      } else if (slot.tipo==='libre') {
+        // Verificar si la sala del form coincide
+        const salaForm = getSala();
+        const salaSlot = SALAS_KEYS[sala] || '';
+        const salaMatch = !salaForm || salaForm === salaSlot;
+
+        if (!salaMatch) {
+          // Sala diferente a la seleccionada — mostrar apagado
+          td.classList.add('c-vacio');
+          td.style.background = 'transparent';
+        } else {
+          td.classList.add(slot.tiene_profe_curso ? 'c-profe' : 'c-libre');
+
+          // Verificar si ya está seleccionado
+          const key = `${fecha}|${hora}|${horaFin}|${salaSlot}`;
+          if (slotsSeleccionados[key]) td.classList.add('selected');
+
+          const txt=document.createElement('div');
+          txt.className='pd-slot-txt';
+          txt.style.color=slot.tiene_profe_curso?'#70A050':'var(--text-hint)';
+          txt.textContent=slot.tiene_profe_curso
+            ? (slot.profes[0]||'').replace(' (profe del curso)',' ✓')
+            : (slot.profes&&slot.profes.length?'+'+slot.profes.length+' profes':'libre');
+          td.appendChild(txt);
+
+          td.dataset.fecha    = fecha;
+          td.dataset.hora     = hora;
+          td.dataset.horaFin  = horaFin;
+          td.dataset.sala     = salaSlot;
+          td.dataset.salaLabel= sala;
+          // Calcular día de semana a partir de la fecha
+          const dateObj = new Date(fecha+'T00:00:00');
+          const dias = ['domingo','lunes','martes','miercoles','jueves','viernes','sabado'];
+          td.dataset.diaSemana = dias[dateObj.getDay()];
+
+          td.addEventListener('click', () => toggleSlot(td));
+        }
+      } else {
+        td.classList.add('c-vacio');
+      }
+      tr.appendChild(td);
+    });
+    tabla.appendChild(tr);
+  });
+}
+
+function toggleSlot(td) {
+  const key = `${td.dataset.fecha}|${td.dataset.hora}|${td.dataset.horaFin}|${td.dataset.sala}`;
+
+  if (slotsSeleccionados[key]) {
+    // Deseleccionar
+    delete slotsSeleccionados[key];
+    td.classList.remove('selected');
+  } else {
+    // Seleccionar
+    slotsSeleccionados[key] = {
+      diaSemana: td.dataset.diaSemana,
+      hora:      td.dataset.hora,
+      horaFin:   td.dataset.horaFin,
+      sala:      td.dataset.sala,
+    };
+    td.classList.add('selected');
+  }
+
+  const count = Object.keys(slotsSeleccionados).length;
+  document.getElementById('pop-count').textContent = count;
+  document.getElementById('pop-confirmar').disabled = count === 0;
+
+  if (count > 0) {
+    const dias = Object.values(slotsSeleccionados)
+      .map(s => DIAS_NAMES[s.diaSemana] || s.diaSemana).join(', ');
+    document.getElementById('pop-sel-info').innerHTML =
+      `<span class="pd-sel-count">${count} slot(s): ${dias}</span>`;
+  } else {
+    document.getElementById('pop-sel-info').textContent =
+      'Seleccioná los slots de cada día que tendrá el curso';
+  }
+}
+
+function confirmarSeleccionCurso() {
+  const slots = Object.values(slotsSeleccionados);
+  if (slots.length === 0) return;
+
+  // Limpiar filas de horario actuales
+  const container = document.getElementById('horarios-container');
+  container.innerHTML = '';
+
+  // Crear una fila por cada slot seleccionado
+  const diasMap = {
+    'lunes':0,'martes':1,'miercoles':2,'jueves':3,
+    'viernes':4,'sabado':5,'domingo':6
+  };
+  slots.sort((a,b) => (diasMap[a.diaSemana]||0) - (diasMap[b.diaSemana]||0));
+
+  slots.forEach(slot => {
+    const tpl = document.getElementById('horario-template').content.cloneNode(true);
+    const row = tpl.querySelector('.horario-row');
+
+    // Setear día
+    const selDia = row.querySelector('select[name="dia_semana"]');
+    selDia.value = slot.diaSemana;
+
+    // Setear horas
+    row.querySelector('input[name="hora_inicio"]').value = slot.hora;
+    row.querySelector('input[name="hora_fin"]').value    = slot.horaFin;
+
+    container.appendChild(tpl);
+  });
+
+  // Si la sala del slot es diferente a la seleccionada, actualizar el select de sala
+  if (slots[0] && slots[0].sala) {
+    const salaSelect = document.getElementById('select-sala');
+    if (salaSelect && !salaSelect.value) {
+      salaSelect.value = slots[0].sala;
+    }
+  }
+
+  bindRemove();
+  document.getElementById('popup-disp').style.display = 'none';
+
+  // Reset selección
+  slotsSeleccionados = {};
+  document.getElementById('pop-count').textContent = '0';
+  document.getElementById('pop-confirmar').disabled = true;
+}
+
+// Horarios manuales
 document.getElementById('btn-add-horario').addEventListener('click', () => {
   const tpl = document.getElementById('horario-template').content.cloneNode(true);
   document.getElementById('horarios-container').appendChild(tpl);
   bindRemove();
 });
+
 function bindRemove() {
   document.querySelectorAll('.btn-remove-horario').forEach(btn => {
     btn.onclick = () => {
